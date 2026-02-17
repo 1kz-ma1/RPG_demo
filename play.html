@@ -225,8 +225,10 @@
       
       // Image
       if (data.image_url) {
-        console.log('[renderScene] Setting image src to:', data.image_url);
-        sceneImage.innerHTML = '<img id="scene-img" src="' + data.image_url + '" alt="Scene" onerror="console.error(\'Image load failed:\', this.src); this.style.border=\'2px solid red\';">';
+        // normalize leading slash so paths work under repo subpath (GitHub Pages)
+        const imgUrl = (data.image_url && data.image_url.startsWith('/')) ? data.image_url.slice(1) : data.image_url;
+        console.log('[renderScene] Setting image src to:', imgUrl);
+        sceneImage.innerHTML = '<img id="scene-img" src="' + imgUrl + '" alt="Scene" onerror="console.error(\'Image load failed:\', this.src); this.style.border=\'2px solid red\';">';
       } else {
         console.log('[renderScene] No image_url, showing placeholder');
         sceneImage.innerHTML = '<span id="image-placeholder">[ ' + (data.title || 'Scene') + ' ]</span>';
@@ -311,7 +313,7 @@
           if (j.ready) {
             // Replace image src with generated file (cache-bust)
             const img = document.getElementById('scene-img');
-            const url = '/media/generated/' + encodeURIComponent(imageKey) + '.png?t=' + Date.now();
+            const url = 'media/generated/' + encodeURIComponent(imageKey) + '.png?t=' + Date.now();
             console.log('[pollImageTask] Task ready! Setting image to:', url);
             if (img) {
               img.src = url;
@@ -434,9 +436,9 @@
     // 例: データをまとめて読み込む
     let storyData, charData, itemData;
     Promise.all([
-      loadJSON('/static/data/story.json'),
-      loadJSON('/static/data/characters.json'),
-      loadJSON('/static/data/items.json')
+      loadJSON('static/data/story.json'),
+      loadJSON('static/data/characters.json'),
+      loadJSON('static/data/items.json')
     ]).then(([story, chars, items]) => {
       storyData = story;
       charData = chars;
@@ -603,11 +605,11 @@
         imgPath = imgPath.replace(/\$\{companion_role\}/g, companionRole);
         let absPath = '';
         if (imgPath.startsWith('pregenerated/')) {
-          absPath = '/media/pregenerated/' + imgPath.substring('pregenerated/'.length);
+          absPath = 'media/pregenerated/' + imgPath.substring('pregenerated/'.length);
         } else if (imgPath.startsWith('/')) {
           absPath = imgPath;
         } else {
-          absPath = '/media/characters/' + imgPath;
+          absPath = 'media/characters/' + imgPath;
         }
         console.log("画像パス:", absPath);
         sceneImg.src = absPath;
@@ -662,7 +664,7 @@
       const imagePlaceholder = document.getElementById('image-placeholder');
       // 画像を戦闘用に切り替え（pregenerated/scene3-battle）
       if (sceneImg) {
-        sceneImg.src = '/media/pregenerated/scene3-battle.jpg';
+        sceneImg.src = 'media/pregenerated/scene3-battle.jpg';
         sceneImg.style.display = '';
       }
       if (imagePlaceholder) imagePlaceholder.style.display = 'none';
