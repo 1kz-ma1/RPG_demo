@@ -341,7 +341,7 @@
           name: jpNames[role],
           role: role,
           personality: personalities[role],
-          image_url: `/media/characters/${imgFiles[role]}`
+          image_url: `media/characters/${imgFiles[role]}`
         }));
         statusEl.classList.remove('loading');
         statusEl.textContent = '';
@@ -382,9 +382,9 @@
       // 演出セクションを表示（画像も渡す）
       // 画像パスが /media/characters/xxx.png 形式であることを想定
       let imageUrl = candidate.image_url;
-      // もし絶対パスでなければ先頭に /media/characters/ を付与（冗長対策）
-      if (imageUrl && !imageUrl.startsWith('/media/')) {
-        imageUrl = '/media/characters/' + imageUrl;
+      // もし相対パスで渡された場合は repo 相対の media パスへ統一
+      if (imageUrl && !imageUrl.startsWith('media/')) {
+        imageUrl = 'media/characters/' + imageUrl;
       }
       showIntro(candidate.name, imageUrl);
     }
