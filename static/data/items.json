@@ -1,0 +1,4 @@
+[
+    {"id": "potion", "name": "回復薬", "effect": "hp+30", "description": "HPを30回復する薬。"},
+    {"id": "sword", "name": "剣", "effect": "attack+5", "description": "攻撃力が5上がる剣。"}
+]

@@ -1,0 +1,120 @@
+{
+  "scenes": [
+    {
+      "id": "scene1",
+      "text": "夕暮れの風が吹き抜ける。\n薄暗い森の奥に、ぽっかりと口を開けた古代遺跡が現れる。\n\n${companion_name}「……ここが“ルーメンの迷宮”。ねぇ、緊張してたりする？」",
+      "image": "pregenerated/scene1.jpg",
+      "choices": [
+        {"text": "少しだけ。でも行くしかないね。", "next": "scene1_1"},
+        {"text": "余裕だよ。任せて。", "next": "scene1_2"},
+        {"text": "正直めちゃくちゃ怖い。", "next": "scene1_3"}
+      ]
+    },
+    {
+      "id": "scene1_1",
+      "text": "${companion_name}「うん、そのくらいがちょうどいいよ。私がついてるから。」",
+      "image": "pregenerated/scene1.jpg",
+      "choices": [
+        {"text": "遺跡に入る", "next": "scene2"}
+      ]
+    },
+    {
+      "id": "scene1_2",
+      "text": "${companion_name}「頼りになる！……って言いたいけど、油断はしないでよ？」",
+      "image": "pregenerated/scene1.jpg",
+      "choices": [
+        {"text": "遺跡に入る", "next": "scene2"}
+      ]
+    },
+    {
+      "id": "scene1_3",
+      "text": "${companion_name}「そ、そうだよね。大丈夫。私も一緒にいるから。」",
+      "image": "pregenerated/scene1.jpg",
+      "choices": [
+        {"text": "遺跡に入る", "next": "scene2"}
+      ]
+    },
+    {
+      "id": "scene2",
+      "text": "冷たい空気が流れ込む……\nどこかから、かすかな気配が――近づいてくる。\n\n${companion_name}「……今、聞こえた？　何かいる。」",
+      "image": "pregenerated/scene2.jpg",
+      "choices": [
+        {"text": "気のせいだよ、多分。", "next": "scene2_1"},
+        {"text": "身構えて。", "next": "scene2_2"},
+        {"text": "後ろに下がって！", "next": "scene2_3"}
+      ]
+    },
+    {
+      "id": "scene2_1",
+      "text": "${companion_name}「そう……だといいけど……。」",
+      "image": "pregenerated/scene2.jpg",
+      "choices": [
+        {"text": "進む", "next": "scene3"}
+      ]
+    },
+    {
+      "id": "scene2_2",
+      "text": "${companion_name}「了解、油断しないで行こう。」",
+      "image": "pregenerated/scene2.jpg",
+      "choices": [
+        {"text": "進む", "next": "scene3"}
+      ]
+    },
+    {
+      "id": "scene2_3",
+      "text": "${companion_name}「う、うん！ありがとう……！」",
+      "image": "pregenerated/scene2.jpg",
+      "choices": [
+        {"text": "進む", "next": "scene3"}
+      ]
+    },
+    {
+      "id": "scene3",
+      "text": "薄闇から、黒い影がひらりと動く。\n\n${companion_name}「来るよ、気をつけて！！」",
+      "image": "pregenerated/scene3.jpg",
+      "choices": [
+        {"text": "影に話しかける", "next": "scene3A"},
+        {"text": "武器を構える", "next": "scene3B"},
+        {"text": "${companion_name}を守るように前に出る", "next": "scene3C"}
+      ]
+    },
+    {
+      "id": "scene3A",
+      "text": "影はすこし揺れ、動きを止めた。\n\n${companion_name}「……え？まさか通じた……？」\n影（正体不明）「……侵入ヲ……確認……」\n（敵ではなく“古代の守護プログラム”に近い存在だった）",
+      "image": "pregenerated/scene3.jpg",
+      "choices": [
+        {"text": "奥へ進む", "next": "scene4"}
+      ]
+    },
+    {
+      "id": "scene3B",
+      "text": "影が反応し、鋭く襲いかかってくる！\n\n${companion_name}「戦うしかないよ！いくよ！」",
+      "image": "pregenerated/scene3-B.jpg",
+      "choices": [
+        {"text": "奥へ進む", "next": "scene4"}
+      ]
+    },
+    {
+      "id": "scene3C",
+      "text": "${companion_name}「ちょ、ちょっと……！そんなの……危ないよ！」\n影はあなたに襲いかかった――\nしかし、ギリギリのところで霧のように消えた。\n${companion_name}（小声）「……ありがとう。\nでも無茶はしないで。私も一緒にいるんだから。」",
+      "image": "pregenerated/scene3.jpg",
+      "choices": [
+        {"text": "影が消えたあと相棒を見る", "next": "scene3C_companion"}
+      ]
+    },
+    {
+      "id": "scene3C_companion",
+      "text": "${companion_name}の表情がふっと和らいだ。\n\n${companion_name}「……ありがとう。\nでも無茶はしないで。私も一緒にいるんだから。」",
+      "image": "${companion_role}.jpg",
+      "choices": [
+        {"text": "奥へ進む", "next": "scene4"}
+      ]
+    },
+    {
+      "id": "scene4",
+      "text": "薄闇の奥で、何かが光った。\nそれは、迷宮があなたたちを“認めた証”のように見えた。\n\n${companion_name}「行こっか。ここから先が、本当の探索だよ。」\n\n（体験版はここまで！続きは本編で）",
+      "image": "ruins_deep.jpg",
+      "choices": []
+    }
+  ]
+}

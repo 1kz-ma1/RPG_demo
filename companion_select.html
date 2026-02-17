@@ -1,0 +1,529 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>旅の相棒を選ぶ</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      background: linear-gradient(135deg, #0e0e10 0%, #1a1a1e 100%); 
+      color: #e6e6e6; 
+      font-family: 'Noto Sans JP', 'Helvetica Neue', sans-serif; 
+      min-height: 100vh;
+      padding: 40px 16px;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    
+    h1 { 
+      font-family: Georgia, serif; 
+      font-size: 36px; 
+      letter-spacing: 3px; 
+      text-transform: uppercase; 
+      margin-bottom: 8px; 
+      color: #8b0000;
+      text-shadow: 0 0 20px rgba(139, 0, 0, 0.3);
+    }
+    .subtitle { color: #aaa; font-size: 14px; margin-bottom: 32px; }
+    
+    .questions { 
+      background: rgba(26, 26, 30, 0.8); 
+      border: 2px solid #8b0000; 
+      border-radius: 4px;
+      padding: 24px; 
+      margin-bottom: 32px;
+      backdrop-filter: blur(10px);
+    }
+    
+    .q { margin-bottom: 24px; }
+    .q:last-child { margin-bottom: 0; }
+    .q-title {
+      font-weight: bold;
+      font-size: 22px;
+      margin-bottom: 16px;
+      color: #8b0000;
+      letter-spacing: 1.5px;
+      line-height: 1.4;
+    }
+    
+    .options { display: flex; flex-direction: column; gap: 8px; }
+    .option {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      cursor: pointer;
+      padding: 18px 28px;
+      border-radius: 14px;
+      transition: all 0.2s cubic-bezier(.4,2,.6,1);
+      background: rgba(255,255,255,0.04);
+      border: 2px solid rgba(139,0,0,0.18);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      margin-bottom: 8px;
+      font-size: 18px;
+      font-weight: 500;
+      position: relative;
+      min-width: 180px;
+    }
+    .option:hover {
+      background: rgba(139,0,0,0.10);
+      border-color: #8b0000;
+      box-shadow: 0 4px 24px rgba(139,0,0,0.10);
+      transform: translateY(-2px) scale(1.03);
+    }
+    .option.selected {
+      border-color: #e60026 !important;
+      background: rgba(230,0,38,0.13) !important;
+      box-shadow: 0 0 0 3px rgba(230,0,38,0.18);
+      transform: scale(1.04);
+    }
+    .option input[type="radio"] {
+      display: none;
+    }
+    .option label {
+      cursor: pointer;
+      flex: 1;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      user-select: none;
+    }
+    .option .emoji {
+      font-size: 28px;
+      margin-right: 8px;
+      flex-shrink: 0;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.10));
+    }
+    
+    .btn-gen { 
+      background: linear-gradient(135deg, #8b0000 0%, #660000 100%);
+      color: #fff; 
+      border: 0; 
+      border-radius: 4px;
+      padding: 14px 24px; 
+      cursor: pointer; 
+      width: 100%; 
+      margin-top: 16px;
+      font-size: 16px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+    }
+    .btn-gen:hover { 
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(139, 0, 0, 0.4);
+    }
+    .btn-gen:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    #status { 
+      color: #aaa; 
+      font-size: 13px;
+      margin-top: 12px;
+      height: 20px;
+      transition: color 0.3s;
+    }
+    #status.loading { color: #8b0000; animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+    
+    .candidates { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
+      gap: 24px;
+      margin-bottom: 20px;
+    }
+    .card { 
+      background: rgba(26, 26, 30, 0.6);
+      border: 1px solid rgba(139, 0, 0, 0.3);
+      border-radius: 4px;
+      padding: 20px;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+      cursor: pointer;
+    }
+    .card:hover { 
+      border-color: #8b0000;
+      background: rgba(26, 26, 30, 0.9);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(139, 0, 0, 0.2);
+    }
+    .card h3 { 
+      margin: 0 0 12px 0; 
+      color: #8b0000;
+      font-family: Georgia, serif;
+      font-size: 18px;
+      letter-spacing: 1px;
+    }
+    .card .role { 
+      font-size: 13px; 
+      color: #aaa;
+      margin-bottom: 12px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .card .description { 
+      white-space: pre-line; 
+      font-size: 13px; 
+      color: #bbb; 
+      margin: 12px 0;
+      line-height: 1.6;
+    }
+    .card button { 
+      background: transparent; 
+      border: 1px solid #8b0000; 
+      color: #8b0000; 
+      padding: 10px 14px; 
+      cursor: pointer; 
+      width: 100%; 
+      margin-top: 12px;
+      border-radius: 2px;
+      font-weight: bold;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 1px;
+    }
+    .card button:hover { 
+      background: #8b0000; 
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 2px 8px rgba(139, 0, 0, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>旅の相棒を選ぶ</h1>
+    <p class="subtitle">2つの質問に答えると、あなたに合った相棒3人が提示されます</p>
+    
+    <div class="questions">
+      <div class="q">
+        <div class="q-title">❋ 苦境での傾向は？</div>
+        <div class="options">
+          <div class="option">
+            <input type="radio" id="q1_1" name="q1" value="1">
+            <label for="q1_1"><span class="emoji">😤</span>勇敢に立ち向かう</label>
+          </div>
+          <div class="option">
+            <input type="radio" id="q1_2" name="q1" value="2">
+            <label for="q1_2"><span class="emoji">🧐</span>冷静に観察する</label>
+          </div>
+          <div class="option">
+            <input type="radio" id="q1_3" name="q1" value="3">
+            <label for="q1_3"><span class="emoji">🤝</span>誰かに頼る</label>
+          </div>
+        </div>
+      </div>
+      
+      <div class="q">
+        <div class="q-title">❋ 大事な価値観は？</div>
+        <div class="options">
+          <div class="option">
+            <input type="radio" id="q2_1" name="q2" value="1">
+            <label for="q2_1"><span class="emoji">⚡</span>効率性と結果</label>
+          </div>
+          <div class="option">
+            <input type="radio" id="q2_2" name="q2" value="2">
+            <label for="q2_2"><span class="emoji">🎨</span>美学と感性</label>
+          </div>
+          <div class="option">
+            <input type="radio" id="q2_3" name="q2" value="3">
+            <label for="q2_3"><span class="emoji">🛡️</span>安全と安心</label>
+          </div>
+        </div>
+      </div>
+      
+      <button id="btn-gen" class="btn-gen">相棒を探す</button>
+      <div id="status"></div>
+    </div>
+    
+    <div id="candidates" class="candidates"></div>
+  </div>
+
+    <script>
+    // 選択肢の選択状態をUIに反映
+    function updateOptionSelected(name) {
+      document.querySelectorAll('.option input[name="'+name+'"]').forEach(input => {
+        const optionDiv = input.closest('.option');
+        if(optionDiv) optionDiv.classList.toggle('selected', input.checked);
+      });
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      // 初期化
+      ['q1','q2'].forEach(q => updateOptionSelected(q));
+      // クリック時
+      document.querySelectorAll('.option input[type="radio"]').forEach(input => {
+        input.addEventListener('change', e => {
+          updateOptionSelected(input.name);
+        });
+      });
+    });
+    const statusEl = document.getElementById('status');
+    const candidatesEl = document.getElementById('candidates');
+    const genBtn = document.getElementById('btn-gen');
+    let pollId = null;
+
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    genBtn.addEventListener('click', async () => {
+      const q1 = document.querySelector('input[name="q1"]:checked')?.value;
+      const q2 = document.querySelector('input[name="q2"]:checked')?.value;
+      if (!q1 || !q2) {
+        statusEl.textContent = '両方の質問に答えてください。';
+        statusEl.style.color = '#e74c3c';
+        return;
+      }
+      statusEl.textContent = '相棒候補を探索中...';
+      statusEl.classList.add('loading');
+      candidatesEl.innerHTML = '';
+      genBtn.disabled = true;
+      try {
+        // 役職リスト
+        const roles = ['priest', 'warrior', 'hunter', 'healer', 'thief', 'mage'];
+        // ランダムで重複無し3つ選出
+        const shuffledRoles = roles.sort(() => Math.random() - 0.5);
+        const selectedRoles = shuffledRoles.slice(0, 3);
+        // 名前リスト（例: 英語名で統一）
+        const names = {
+          priest: 'miyu',
+          warrior: 'marina',
+          hunter: 'hinata',
+          healer: 'kana',
+          thief: 'sara',
+          mage: 'emi'
+        };
+        // 性格リスト（例: サンプル）
+        const personalities = {
+          priest: '優しく包容力がある',
+          warrior: '従順で人懐っこい',
+          hunter: '静かだが観察力が高い',
+          healer: '明るく元気で癒し系',
+          thief: '素早くて好奇心旺盛',
+          mage: '知的で神秘的な雰囲気'
+        };
+        // 画像パス生成
+        // 日本語名リスト
+        const jpNames = {
+          priest: 'みゆ',
+          warrior: 'まりな',
+          hunter: 'ひなた',
+          healer: 'かな',
+          thief: 'さら',
+          mage: 'えみ'
+        };
+        // 画像ファイル名リスト（拡張子含めて正しいものに）
+        const imgFiles = {
+          priest: 'priest.jpg',
+          warrior: 'warrior.jpg',
+          hunter: 'hunter.jpg',
+          healer: 'healer.jpg',
+          thief: 'thief.jpg',
+          mage: 'mage.jpg'
+        };
+        const candidates = selectedRoles.map(role => ({
+          name: jpNames[role],
+          role: role,
+          personality: personalities[role],
+          image_url: `/media/characters/${imgFiles[role]}`
+        }));
+        statusEl.classList.remove('loading');
+        statusEl.textContent = '';
+        renderCandidates(candidates, q1, q2);
+        // --- ここでキャラ表示セクションに自動スクロール ---
+        setTimeout(() => {
+          candidatesEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+        genBtn.disabled = false;
+      } catch (e) {
+        statusEl.textContent = '探索失敗。もう一度試してください。';
+        statusEl.style.color = '#e74c3c';
+        genBtn.disabled = false;
+      }
+    });
+
+    function renderCandidates(list, q1, q2) {
+      candidatesEl.innerHTML = '';
+      list.forEach((c, idx) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <h3>${c.name}</h3>
+          <div class="role">${c.role}</div>
+          <div class="description">${c.personality}</div>
+        `;
+        const btn = document.createElement('button');
+        btn.textContent = 'この子を選ぶ';
+        btn.onclick = () => chooseCandidate(c, q1, q2);
+        card.appendChild(btn);
+        candidatesEl.appendChild(card);
+      });
+    }
+
+    function chooseCandidate(candidate, q1, q2) {
+      // 必要ならlocalStorage等に選択キャラを保存
+      localStorage.setItem('selected_companion', JSON.stringify(candidate));
+      // 演出セクションを表示（画像も渡す）
+      // 画像パスが /media/characters/xxx.png 形式であることを想定
+      let imageUrl = candidate.image_url;
+      // もし絶対パスでなければ先頭に /media/characters/ を付与（冗長対策）
+      if (imageUrl && !imageUrl.startsWith('/media/')) {
+        imageUrl = '/media/characters/' + imageUrl;
+      }
+      showIntro(candidate.name, imageUrl);
+    }
+
+    function showIntro(npcName, imageUrl) {
+      const modal = document.createElement('div');
+      modal.style.cssText = `
+        position: fixed; left: 0; top: 0; width: 100%; height: 100%;
+        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1e 100%);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 9998;
+      `;
+      const box = document.createElement('div');
+      box.style.cssText = 'text-align: center; color: #e6e6e6;';
+      box.innerHTML = `
+        <img src="${imageUrl}" alt="${npcName}" style="
+          width: 220px; height: 220px; object-fit: cover; border-radius: 50%;
+          box-shadow: 0 0 32px #8b0000, 0 4px 32px rgba(0,0,0,0.5);
+          margin-bottom: 24px; border: 4px solid #8b0000; background: #222;
+        ">
+        <h2 style="
+          font-family: Georgia, serif; 
+          font-size: 48px; 
+          color: #8b0000; 
+          letter-spacing: 3px; 
+          margin-bottom: 30px;
+          text-shadow: 0 0 20px rgba(139, 0, 0, 0.3);
+        ">
+          ${npcName}
+        </h2>
+        <p style="font-size: 20px; margin: 30px 0; line-height: 1.8; color: #bbb;">
+          「はじめまして。」<br>「これからよろしくね。」
+        </p>
+        <p style="
+          color: #888; 
+          margin-top: 50px; 
+          font-size: 12px;
+          animation: blink 1.5s ease-in-out infinite;
+        ">
+          クリックでゲーム開始...
+        </p>
+        <style>
+          @keyframes blink { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+        </style>
+      `;
+      modal.appendChild(box);
+      modal.onclick = () => {
+        document.body.removeChild(modal);
+        window.location.href = 'play.html';
+      };
+      document.body.appendChild(modal);
+    }
+
+    function askPersonality() {
+      return new Promise((resolve) => {
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+          position: fixed; left: 0; top: 0; width: 100%; height: 100%;
+          background: rgba(0, 0, 0, 0.9); display: flex; align-items: center;
+          justify-content: center; z-index: 9999;
+        `;
+        const box = document.createElement('div');
+        box.style.cssText = `
+          background: rgba(26, 26, 30, 0.95); 
+          border: 2px solid #8b0000; 
+          border-radius: 4px;
+          padding: 32px; 
+          max-width: 450px;
+          backdrop-filter: blur(10px);
+        `;
+        box.innerHTML = `
+          <h3 style="margin-top: 0; color: #8b0000; font-family: Georgia, serif; font-size: 20px; letter-spacing: 1px;">
+            この子との相性を選ぶ
+          </h3>
+          <div style="margin: 20px 0; font-size: 13px; color: #bbb; line-height: 1.8;">
+            <p style="margin-bottom: 12px;"><strong>① ポジティブ</strong><br>いつも元気で陽気な相棒</p>
+            <p style="margin-bottom: 12px;"><strong>② ジェントル</strong><br>優しくて従順な相棒</p>
+            <p><strong>③ インテリジェント</strong><br>知的で優秀だけど冷たい相棒</p>
+          </div>
+        `;
+        const btns = document.createElement('div');
+        btns.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 20px;';
+        [1,2,3].forEach(i => {
+          const b = document.createElement('button');
+          b.textContent = i;
+          b.style.cssText = `
+            background: transparent; 
+            border: 1px solid #8b0000; 
+            color: #8b0000; 
+            padding: 12px; 
+            cursor: pointer;
+            border-radius: 2px;
+            font-weight: bold;
+            font-size: 16px;
+            transition: all 0.2s ease;
+          `;
+          b.onmouseover = () => { 
+            b.style.background = '#8b0000'; 
+            b.style.color = '#fff';
+            b.style.transform = 'translateY(-2px)';
+          };
+          b.onmouseout = () => { 
+            b.style.background = 'transparent'; 
+            b.style.color = '#8b0000';
+            b.style.transform = 'translateY(0)';
+          };
+          b.onclick = () => {
+            document.body.removeChild(modal);
+            resolve(i);
+          };
+          btns.appendChild(b);
+        });
+        const cancel = document.createElement('button');
+        cancel.textContent = 'キャンセル';
+        cancel.style.cssText = `
+          width: 100%; 
+          margin-top: 12px; 
+          background: transparent; 
+          border: 1px solid #666; 
+          color: #888; 
+          padding: 10px; 
+          cursor: pointer;
+          border-radius: 2px;
+          transition: all 0.2s ease;
+        `;
+        cancel.onmouseover = () => cancel.style.borderColor = '#aaa';
+        cancel.onmouseout = () => cancel.style.borderColor = '#666';
+        cancel.onclick = () => {
+          document.body.removeChild(modal);
+          resolve(null);
+        };
+        box.appendChild(btns);
+        box.appendChild(cancel);
+        modal.appendChild(box);
+        document.body.appendChild(modal);
+      });
+    }
+
+    // 下側の重複showIntro関数（画像なしバージョン）は削除
+  </script>
+</body>
+</html>

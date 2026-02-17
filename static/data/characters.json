@@ -1,0 +1,11 @@
+[
+    {"name": "みゆ", "role": "priest", "personality": "優しく包容力がある", "image_url": "/media/characters/priest.jpg"},
+    {"name": "ゆり", "role": "priest", "personality": "静かだが観察力が高い", "image_url": "/media/characters/priest.jpg"},
+    {"name": "るな", "role": "priest", "personality": "冷静沈着で知的", "image_url": "/media/characters/priest.jpg"},
+    {"name": "まりな", "role": "warrior", "personality": "従順で人懐っこい", "image_url": "/media/characters/warrior.jpg"},
+    {"name": "ひなた", "role": "hunter", "personality": "静かだが観察力が高い", "image_url": "/media/characters/hunter.jpg"},
+    {"name": "あやめ", "role": "hunter", "personality": "神秘的で少し気まぐれ", "image_url": "/media/characters/hunter.jpg"},
+    {"name": "かな", "role": "healer", "personality": "明るく元気で癒し系", "image_url": "/media/characters/healer.jpg"},
+    {"name": "さら", "role": "thief", "personality": "素早くて好奇心旺盛", "image_url": "/media/characters/thief.jpg"},
+    {"name": "えみ", "role": "mage", "personality": "知的で神秘的な雰囲気", "image_url": "/media/characters/mage.jpg"}
+]

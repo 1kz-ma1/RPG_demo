@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>スタート</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: linear-gradient(135deg, #0e0e10 0%, #1a1a1e 100%);
+      color: #e6e6e6;
+      font-family: 'Noto Sans JP', 'Helvetica Neue', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      position: relative;
+    }
+    .contact-btn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 10px 20px;
+      background: rgba(139, 0, 0, 0.8);
+      border: 1px solid #8b0000;
+      border-radius: 2px;
+      color: #e6e6e6;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(10px);
+    }
+    .contact-btn:hover {
+      background: #8b0000;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(139, 0, 0, 0.3);
+    }
+    .container {
+      max-width: 420px;
+      width: 100%;
+      background: rgba(26, 26, 30, 0.8);
+      border: 2px solid #8b0000;
+      border-radius: 4px;
+      padding: 40px;
+      backdrop-filter: blur(10px);
+      text-align: center;
+    }
+    h1 {
+      font-family: Georgia, serif;
+      font-size: 32px;
+      letter-spacing: 2px;
+      color: #8b0000;
+      margin-bottom: 24px;
+      text-shadow: 0 0 10px rgba(139, 0, 0, 0.2);
+    }
+    .start-btn {
+      display: inline-block;
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #8b0000 0%, #660000 100%);
+      color: #fff;
+      border: 0;
+      border-radius: 2px;
+      font-weight: bold;
+      font-size: 18px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: all 0.3s ease;
+      margin-top: 16px;
+    }
+    .start-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(139, 0, 0, 0.3);
+    }
+    .start-btn:active {
+      transform: translateY(0);
+    }
+    .desc {
+      font-size: 15px;
+      color: #bbb;
+      margin-bottom: 24px;
+    }
+  </style>
+  <script>
+    const log = (msg) => {
+      const el = document.getElementById('log');
+      el.textContent += msg + "\n";
+      el.scrollTop = el.scrollHeight;
+    };
+  </script>
+</head>
+<body>
+  <div class="container">
+    <h1>ようこそ</h1>
+    <div class="desc">このゲームは、自動生成型RPGの体験版を静的HTMLで体験できるようにしたものです。</div>
+    <button class="start-btn" onclick="location.href='companion_select.html'">ゲームスタート</button>
+  </div>
+</body>
+</html>

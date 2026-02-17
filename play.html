@@ -1,0 +1,913 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>冒険</title>
+    <link rel="stylesheet" href="/static/rpg_style.css">
+    <link rel="stylesheet" href="/static/rpg_choice.css">
+
+    <div class="layout">
+    <div class="header">
+      <h1 id="scene-title">⚔ 冒険</h1>
+      <div class="header-stats">
+        
+        <div class="stat">
+          <span>LV</span>
+          <span class="stat-value" id="level">1</span>
+        </div>
+        <div class="stat">
+          <span>HP</span>
+          <span class="stat-value" id="hp">100</span>
+        </div>
+        <div class="stat">
+          <span>スコア</span>
+          <span class="stat-value" id="score">0</span>
+        </div>
+        <div class="header-menu-btns">
+          <button class="menu-btn" onclick="openStats()">📊 ステータス</button>
+          <button class="menu-btn" onclick="openInventory()">🎒 アイテム</button>
+          <button class="menu-btn" onclick="openMap()">🗺 マップ</button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="scene">
+      <div class="scene-image" id="scene-image">
+        <img id="scene-img" src="" alt="scene" style="max-width:100%; max-height:100%; border-radius:2px; display:none;" />
+        <span id="image-placeholder">画像準備中...</span>
+        <div class="scene-text-overlay" id="scene-text-overlay" style="display:block;"></div>
+      </div>
+    </div>
+    
+    <div class="scene-log">
+      <div class="log-title">📜 イベントログ</div>
+      <div id="log" style="max-height: 300px; overflow-y: auto;"></div>
+    </div>
+    
+    <div class="choices" id="choices"></div>
+    
+    <div class="menu">
+      <button class="menu-btn" onclick="goBack()" style="margin-left: auto;">← 戻る</button>
+    </div>
+  </div>
+
+  <script>
+              // 選択肢オーバーレイを表示
+              function showChoicesOverlay(choices, onSelect) {
+                // 既存オーバーレイ削除
+                const old = document.getElementById('scene-choice-overlay');
+                if (old) old.remove();
+                const overlay = document.createElement('div');
+                overlay.className = 'scene-choice-overlay';
+                overlay.id = 'scene-choice-overlay';
+                overlay.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
+                const list = document.createElement('div');
+                list.className = 'scene-choice-list';
+                list.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
+                choices.forEach((choice, idx) => {
+                  const btn = document.createElement('button');
+                  btn.className = 'scene-choice-btn';
+                  btn.textContent = choice.text;
+                  btn.onclick = (e) => {
+                    e.stopPropagation();
+                    overlay.remove();
+                    if (onSelect) onSelect(choice, idx);
+                  };
+                  list.appendChild(btn);
+                });
+                overlay.appendChild(list);
+                // 画像レイヤーに重ねて追加
+                const sceneImageDiv = document.getElementById('scene-image');
+                if (sceneImageDiv) sceneImageDiv.appendChild(overlay);
+              }
+            // 弾幕テキスト進行用のグローバル変数
+            let currentTextBlocks = [];
+            let currentTextIndex = 0;
+            let textOverlayEl = null;
+            let nextBtnEl = null;
+
+            // 弾幕テキストを1つずつtypewriter表示し、scene-image全体クリックで次へ
+            function showNextTextBlock(callback) {
+              if (!textOverlayEl) textOverlayEl = document.getElementById('scene-text-overlay');
+              // ▼ボタンは毎回新規生成し、弾幕送りごとにappendする
+              nextBtnEl = document.createElement('div');
+              nextBtnEl.className = 'scene-text-next';
+              nextBtnEl.textContent = '▼';
+              nextBtnEl.style.display = 'none';
+              nextBtnEl.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
+              // 画像レイヤー右下に常に浮かせるためscene-image直下にappend
+              const sceneImageDiv2 = document.getElementById('scene-image');
+              if (sceneImageDiv2) {
+                // 既存のnextBtnElを除去
+                const oldNext = sceneImageDiv2.querySelector('.scene-text-next');
+                if (oldNext) oldNext.remove();
+                sceneImageDiv2.appendChild(nextBtnEl);
+              }
+              const sceneImageDiv = document.getElementById('scene-image');
+              if (sceneImageDiv) {
+                sceneImageDiv.classList.add('clickable');
+                sceneImageDiv.onclick = () => {
+                  if (nextBtnEl.style.display === 'block') {
+                    nextBtnEl.style.display = 'none';
+                    currentTextIndex++;
+                    if (currentTextIndex < currentTextBlocks.length) {
+                      showNextTextBlock(callback);
+                    } else {
+                      sceneImageDiv.onclick = null;
+                      sceneImageDiv.classList.remove('clickable');
+                      if (callback) callback();
+                    }
+                  }
+                };
+              }
+              textOverlayEl.innerHTML = '';
+              if (currentTextIndex < currentTextBlocks.length) {
+                // %ブロックに到達したら選択肢トリガー
+                if (currentTextBlocks[currentTextIndex] === '%') {
+                  if (callback) callback();
+                  return;
+                }
+                typeWriterText(textOverlayEl, currentTextBlocks[currentTextIndex], 28, () => {
+                  nextBtnEl.style.display = 'block';
+                });
+              } else {
+                // テキストが空の場合でもcallbackを呼ぶ
+                if (callback) callback();
+              }
+            }
+          // Typewriterアニメーションでテキストを表示し、完了時にコールバック
+          function typeWriterText(element, html, speed = 28, callback) {
+            element.innerHTML = '';
+            let i = 0;
+            // HTMLタグを考慮して1文字ずつ出す
+            function type() {
+              if (i >= html.length) {
+                if (callback) callback();
+                return;
+              }
+              // <br>などのタグは一気に出す
+              if (html[i] === '<') {
+                const close = html.indexOf('>', i);
+                if (close !== -1) {
+                  element.innerHTML += html.slice(i, close + 1);
+                  i = close + 1;
+                } else {
+                  element.innerHTML += html[i++];
+                }
+              } else {
+                element.innerHTML += html[i++];
+              }
+              setTimeout(type, speed);
+            }
+            type();
+          }
+        // --- 進行・ステータス保存雛形 ---
+        const SAVE_KEY = 'rpg_save';
+
+        function saveGame(state) {
+          localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+          console.log('ゲーム進行を保存:', state);
+        }
+
+        function loadGame() {
+          const data = localStorage.getItem(SAVE_KEY);
+          if (!data) return null;
+          try {
+            return JSON.parse(data);
+          } catch (e) {
+            return null;
+          }
+        }
+
+        // 例: ゲーム開始時に進行状況を復元
+        let gameState = loadGame() || {
+          score: 0,
+          level: 1,
+          hp: 100,
+          maxHp: 100,
+          log: [],
+          sceneId: 'start',
+          items: []
+        };
+        // シーン遷移時などにsaveGame(gameState)を呼ぶことで進行を保存できる
+    const sceneTitle = document.getElementById('scene-title');
+    const sceneImage = document.getElementById('scene-image');
+    const choices = document.getElementById('choices');
+    const logEl = document.getElementById('log');
+    const scoreEl = document.getElementById('score');
+    const levelEl = document.getElementById('level');
+    const hpEl = document.getElementById('hp');
+    const cacheInfo = document.getElementById('cache-info');
+
+    async function fetchScene() {
+      const res = await fetch('/api/choose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      
+      if (!res.ok) {
+        logEl.innerHTML = '<div class="log-entry damage">シーン読み込みエラー</div>';
+        return;
+      }
+      
+      const data = await res.json();
+      console.log('[fetchScene] Response:', data);
+      console.log('[fetchScene] image_url:', data.image_url);
+      console.log('[fetchScene] image_task_id:', data.image_task_id);
+      console.log('[fetchScene] image_key:', data.image_key);
+      renderScene(data);
+    }
+
+    function renderScene(data) {
+      // Title
+      sceneTitle.textContent = data.title || '???';
+      
+      // Image
+      if (data.image_url) {
+        console.log('[renderScene] Setting image src to:', data.image_url);
+        sceneImage.innerHTML = '<img id="scene-img" src="' + data.image_url + '" alt="Scene" onerror="console.error(\'Image load failed:\', this.src); this.style.border=\'2px solid red\';">';
+      } else {
+        console.log('[renderScene] No image_url, showing placeholder');
+        sceneImage.innerHTML = '<span id="image-placeholder">[ ' + (data.title || 'Scene') + ' ]</span>';
+      }
+
+      // If server returned an image generation task id, poll it and update the image when ready
+      if (data.image_task_id && data.image_key) {
+        pollImageTask(data.image_task_id, data.image_key);
+      }
+      
+      // Stats
+      // Use actual HP from server
+      if (data.hp !== undefined) {
+        gameState.hp = data.hp;
+      }
+      if (data.max_hp !== undefined) {
+        gameState.maxHp = data.max_hp;
+      }
+      
+      // `data.score` may be a number or an object like { total: N, level: L }
+      let numericScore = gameState.score;
+      if (data.score !== undefined && data.score !== null) {
+        if (typeof data.score === 'object') {
+          numericScore = Number(data.score.total || data.score.value || numericScore) || numericScore;
+        } else {
+          numericScore = Number(data.score) || numericScore;
+        }
+      }
+      gameState.score = numericScore;
+      // level: prefer provided level if present
+      if (data.score && typeof data.score === 'object' && data.score.level) {
+        gameState.level = Number(data.score.level) || gameState.level;
+      } else {
+        gameState.level = Math.max(1, Math.floor(gameState.score / 10) + 1);
+      }
+      
+      scoreEl.textContent = gameState.score;
+      levelEl.textContent = gameState.level;
+      hpEl.textContent = gameState.hp + '/' + gameState.maxHp;
+      
+      // Cache badge
+      if (data.cache_hit) {
+        cacheInfo.style.display = 'inline-block';
+      } else {
+        cacheInfo.style.display = 'none';
+      }
+      
+      // Log
+      if (data.log && data.log.length > 0) {
+        logEl.innerHTML = '';
+        data.log.slice(-10).forEach(entry => {
+          const div = document.createElement('div');
+          div.className = 'log-entry';
+          if (entry.indexOf('ダメージ') >= 0) {
+            div.classList.add('damage');
+          } else if (entry.indexOf('回復') >= 0) {
+            div.classList.add('recovery');
+          } else if (entry.indexOf('選択') >= 0 || entry.indexOf('実行') >= 0) {
+            div.classList.add('action');
+          }
+          div.textContent = entry;
+          logEl.appendChild(div);
+        });
+      }
+      
+      // Choices（ここでは何も出さない。showSceneで弾幕送り完了時のみ表示）
+      choices.innerHTML = '';
+    }
+
+    // Poll the task status endpoint until ready, then update the scene image src
+    function pollImageTask(taskId, imageKey) {
+      console.log('[pollImageTask] Starting poll for taskId:', taskId, 'imageKey:', imageKey);
+      const attempt = async () => {
+        try {
+          const res = await fetch('/api/tasks/' + encodeURIComponent(taskId));
+          if (!res.ok) {
+            console.warn('[pollImageTask] Response not OK:', res.status);
+            return;
+          }
+          const j = await res.json();
+          console.log('[pollImageTask] Status:', j);
+          if (j.ready) {
+            // Replace image src with generated file (cache-bust)
+            const img = document.getElementById('scene-img');
+            const url = '/media/generated/' + encodeURIComponent(imageKey) + '.png?t=' + Date.now();
+            console.log('[pollImageTask] Task ready! Setting image to:', url);
+            if (img) {
+              img.src = url;
+              img.onerror = () => console.error('[pollImageTask] Image load failed:', url);
+            } else {
+              sceneImage.innerHTML = '<img id="scene-img" src="' + url + '" alt="Scene" onerror="console.error(\'Image load failed:\', this.src)">';
+            }
+            // show cache badge
+            cacheInfo.style.display = 'inline-block';
+          } else {
+            // try again in 1500ms
+            console.log('[pollImageTask] Not ready yet, polling again...');
+            setTimeout(attempt, 1500);
+          }
+        } catch (e) {
+          console.error('[pollImageTask] Error:', e);
+          setTimeout(attempt, 2000);
+        }
+      };
+      attempt();
+    }
+
+    async function selectChoice(choice, idx) {
+      console.log('[selectChoice] Selected:', choice);
+      
+      // Disable all choices while loading
+      document.querySelectorAll('.choice-btn').forEach(b => {
+        b.disabled = true;
+      });
+      
+      try {
+        const res = await fetch('/api/choose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ choice: choice })
+        });
+        
+        if (!res.ok) {
+          console.error('[selectChoice] Error response:', res.status);
+          logEl.innerHTML += '<div class="log-entry damage">選択処理エラー</div>';
+          return;
+        }
+        
+        const data = await res.json();
+        console.log('[selectChoice] Response:', data);
+        renderScene(data);
+      } catch (e) {
+        console.error('[selectChoice] Exception:', e);
+        logEl.innerHTML += '<div class="log-entry damage">通信エラー</div>';
+      } finally {
+        // Re-enable choices
+        document.querySelectorAll('.choice-btn').forEach(b => {
+          b.disabled = false;
+        });
+      }
+    }
+
+    function openStats() {
+      alert('📊 ステータス\n\nレベル: ' + gameState.level + '\nHP: ' + gameState.hp + '/' + gameState.maxHp + '\nスコア: ' + gameState.score);
+    }
+
+    async function openInventory() {
+      try {
+        const res = await fetch('/api/inventory', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!res.ok) {
+          alert('アイテム情報の取得に失敗しました');
+          return;
+        }
+        
+        const data = await res.json();
+        console.log('[openInventory] Data:', data);
+        
+        let message = '🎒 所持アイテム\n\n';
+        
+        if (data.items && Object.keys(data.items).length > 0) {
+          for (const [itemName, count] of Object.entries(data.items)) {
+            if (count > 0) {
+              message += `・${itemName} × ${count}\n`;
+            }
+          }
+        } else {
+          message += 'アイテムを持っていません';
+        }
+        
+        if (data.companions && data.companions.length > 0) {
+          message += '\n\n⚔️ 仲間:\n';
+          data.companions.forEach(comp => {
+            message += `・${comp.name} (${comp.role})\n`;
+          });
+        }
+        
+        alert(message);
+      } catch (e) {
+        console.error('[openInventory] Error:', e);
+        alert('アイテム情報の取得中にエラーが発生しました');
+      }
+    }
+
+    function openMap() {
+      alert('🗺 マップ\n\n(実装予定)');
+    }
+
+    function goBack() {
+      if (confirm('冒険を終わりますか？')) {
+        window.location.href = '/companions/select_page';
+      }
+    }
+
+    // --- JSONデータ読み込み雛形 ---
+    async function loadJSON(path) {
+      const res = await fetch(path);
+      if (!res.ok) throw new Error('データ取得失敗: ' + path);
+      return await res.json();
+    }
+
+    // 例: データをまとめて読み込む
+    let storyData, charData, itemData;
+    Promise.all([
+      loadJSON('/static/data/story.json'),
+      loadJSON('/static/data/characters.json'),
+      loadJSON('/static/data/items.json')
+    ]).then(([story, chars, items]) => {
+      storyData = story;
+      charData = chars;
+      itemData = items;
+      // ここでゲーム初期化や描画処理を呼ぶ
+      console.log('ストーリー', storyData);
+      console.log('キャラ', charData);
+      console.log('アイテム', itemData);
+      // 例: 最初のシーンを表示
+      showScene('scene1');
+    }).catch(e => {
+      alert('データ読み込みエラー: ' + e);
+    });
+
+    // シーン表示の雛形
+    function showScene(sceneId) {
+        currentTextBlocks = [];
+        currentTextIndex = 0;
+      // --- シーン進行時にUI重複を防ぐため、scene-image配下の不要な要素を毎回クリア ---
+      const sceneImageDiv = document.getElementById('scene-image');
+      if (sceneImageDiv) {
+        // シーン進行時、scene-image配下を完全クリア（全UI競合防止）
+        sceneImageDiv.innerHTML = '';
+        // 画像要素とテキストオーバーレイを再生成
+        const img = document.createElement('img');
+        img.id = 'scene-img';
+        img.src = '';
+        img.alt = 'scene';
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = '100%';
+        img.style.borderRadius = '2px';
+        img.style.display = 'none';
+        sceneImageDiv.appendChild(img);
+        const placeholder = document.createElement('span');
+        placeholder.id = 'image-placeholder';
+        placeholder.textContent = '画像準備中...';
+        sceneImageDiv.appendChild(placeholder);
+        const textOverlay = document.createElement('div');
+        textOverlay.className = 'scene-text-overlay';
+        textOverlay.id = 'scene-text-overlay';
+        textOverlay.style.display = 'block';
+        sceneImageDiv.appendChild(textOverlay);
+      }
+      // デバッグ: 弾幕テキストと要素の状態を出力
+      console.log('[弾幕デバッグ] sceneId:', sceneId);
+      // デバッグ用: 現在のシーンIDと全シーンID一覧を出力
+      console.log("currentSceneId:", sceneId);
+      if (storyData && storyData.scenes) {
+        console.log("scenes ids:", storyData.scenes.map(s => s.id));
+      } else {
+        console.log("storyDataまたはscenesが未定義");
+      }
+      const scene = storyData.scenes.find(s => s.id === sceneId);
+      if (!scene) {
+        alert('シーンが見つかりません: ' + sceneId);
+        return;
+      }
+      // 戦闘トリガー: scene3Bは戦闘に移行
+      if (scene.id === 'scene3B') {
+        // 敵ステータスの簡易定義（必要に応じてstory.jsonや別定義へ移動可）
+        const enemy = { id: 'shadow', name: '黒き影', hp: 40, maxHp: 40, atk: 7, def: 1, avoid: 8 };
+        startBattle(enemy, scene);
+        return;
+      }
+      if (currentTextBlocks.length > 0) {
+        showNextTextBlock(() => {
+          // 弾幕テキストをすべて出力しきったタイミングでデバッグ出力
+          console.log('[弾幕完了] シーンID:', sceneId, 'currentTextIndex:', currentTextIndex, 'currentTextBlocks:', currentTextBlocks);
+          if (scene.choices && Array.isArray(scene.choices) && scene.choices.length > 0) {
+            console.log('[選択肢トリガー] シーンID:', sceneId, 'choices:', scene.choices);
+            showChoicesOverlay(scene.choices, (choice) => {
+              // 選択肢クリック時、次のシーンへ
+              if (choice.next) showScene(choice.next);
+            });
+          } else {
+            console.log('[選択肢トリガー] シーンID:', sceneId, '→ 選択肢なし');
+          }
+        });
+      } else if (scene.choices && Array.isArray(scene.choices) && scene.choices.length > 0) {
+        // テキストが空でも選択肢があればダミー弾幕送りを1回発生させてクリック後に選択肢を表示
+        currentTextBlocks = [''];
+        currentTextIndex = 0;
+        showNextTextBlock(() => {
+          console.log('[弾幕完了:ダミー] シーンID:', sceneId, 'currentTextIndex:', currentTextIndex, 'currentTextBlocks:', currentTextBlocks);
+          console.log('[選択肢トリガー] シーンID:', sceneId, 'choices:', scene.choices);
+          showChoicesOverlay(scene.choices, (choice) => {
+            if (choice.next) showScene(choice.next);
+          });
+        });
+      } else {
+        // テキストも選択肢もない場合
+        console.log('[弾幕スキップ] シーンID:', sceneId, 'currentTextBlocksが空・選択肢もなし');
+      }
+      // 相棒名・役職をlocalStorageから取得
+      let companionName = 'リィナ';
+      let companionRole = 'priest';
+      try {
+        const sel = localStorage.getItem('selected_companion');
+        if (sel) {
+          const obj = JSON.parse(sel);
+          if (obj && obj.name) companionName = obj.name;
+          if (obj && obj.role) companionRole = obj.role;
+        }
+      } catch(e) {}
+      // タイトル
+      document.getElementById('scene-title').textContent = (scene.title || '旅路の始まり');
+      // 本文（${companion_name}を置換）
+      let text = scene.text || '';
+      text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      text = text.replace(/\$\{companion_name\}/g, companionName).replace(/\$\{companion_role\}/g, companionRole);
+      // %トリガー対応: %があればそこまで弾幕送り、%で選択肢表示。なければ従来通り。
+      let rawBlocks = text.split(/\n\n/).map(s => s.trim());
+      let triggerIndex = rawBlocks.findIndex(b => b === '%');
+      if (triggerIndex !== -1) {
+        // %があればそこまでを弾幕送り、%で選択肢トリガー
+        currentTextBlocks = rawBlocks.slice(0, triggerIndex).map(s => s.replace(/\n/g, '<br>')).filter(s => s.length > 0);
+        currentTextBlocks.push('%'); // トリガーブロックを明示的に入れる
+      } else {
+        // %がなければ従来通り
+        currentTextBlocks = rawBlocks.map(s => s.replace(/\n/g, '<br>')).filter(s => s.length > 0);
+      }
+      currentTextIndex = 0;
+      textOverlayEl = document.getElementById('scene-text-overlay');
+      if (textOverlayEl) textOverlayEl.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
+      showNextTextBlock(() => {
+        // %トリガーまたは弾幕完了時に選択肢
+        if (
+          (currentTextBlocks.length > 0 && currentTextBlocks[currentTextBlocks.length - 1] === '%' && currentTextIndex === currentTextBlocks.length - 1)
+          || (currentTextBlocks.length > 0 && currentTextBlocks[currentTextBlocks.length - 1] !== '%' && currentTextIndex === currentTextBlocks.length)
+        ) {
+          if (scene.choices && Array.isArray(scene.choices) && scene.choices.length > 0) {
+            showChoicesOverlay(scene.choices, (choice) => {
+              if (choice.next) showScene(choice.next);
+            });
+          }
+        }
+      });
+      // イベントログに記録
+      const logEl = document.getElementById('log');
+      if (logEl) {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        entry.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
+        // 発言者名の抽出（「キャラ名「」」や${companion_name}など）
+        let logText = text.replace(/<br>/g, ' ');
+        // XSS対策でエスケープ
+        function escapeHtml(str) {
+          return str.replace(/[&<>"']/g, function(tag) {
+            const chars = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'};
+            return chars[tag] || tag;
+          });
+        }
+        // \nを改行として反映
+        entry.innerHTML = escapeHtml(logText).replace(/\n/g, '<br>');
+        logEl.appendChild(entry);
+        // スクロール一番下へ
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+      // 画像
+      const sceneImg = document.getElementById('scene-img');
+      const imagePlaceholder = document.getElementById('image-placeholder');
+      if (scene.image) {
+        let imgPath = scene.image;
+        imgPath = imgPath.replace(/\$\{companion_role\}/g, companionRole);
+        let absPath = '';
+        if (imgPath.startsWith('pregenerated/')) {
+          absPath = '/media/pregenerated/' + imgPath.substring('pregenerated/'.length);
+        } else if (imgPath.startsWith('/')) {
+          absPath = imgPath;
+        } else {
+          absPath = '/media/characters/' + imgPath;
+        }
+        console.log("画像パス:", absPath);
+        sceneImg.src = absPath;
+        sceneImg.style.display = '';
+        sceneImg.onerror = function() {
+          this.style.display = 'none';
+          if (imagePlaceholder) imagePlaceholder.textContent = '画像が見つかりません';
+        };
+        if (imagePlaceholder) imagePlaceholder.style.display = 'none';
+      } else {
+        sceneImg.style.display = 'none';
+        if (imagePlaceholder) {
+          imagePlaceholder.textContent = '画像なし';
+          imagePlaceholder.style.display = '';
+        }
+      }
+      console.log('シーン表示:', scene);
+    }
+
+    // --- 戦闘ロジック ---
+    let battleState = null;
+
+    function startBattle(enemy, sceneContext) {
+      if (!battleState) battleState = {};
+      // 二重起動防止フラグ
+      if (battleState._started) return;
+      battleState._started = true;
+      battleState.enemy = Object.assign({}, enemy);
+      // プレイヤー側ステータス: 主人公 + 相棒。相棒のatkの2倍が主人公のatk
+      const sel = localStorage.getItem('selected_companion');
+      const companionName = sel ? JSON.parse(sel).name : '相棒';
+      // 基本値（調整可）
+      const companionDefault = { hp: 40, maxHp: 40, atk: 8, def: 2, avoid: 6 };
+      battleState.companion = Object.assign({}, companionDefault, { name: companionName });
+      battleState.protagonist = {
+        name: '主人公',
+        hp: gameState.hp || 100,
+        maxHp: gameState.maxHp || 100,
+        atk: (battleState.companion.atk || companionDefault.atk) * 2,
+        def: 3,
+        avoid: 6
+      };
+      // convenience alias for older code paths
+      battleState.player = battleState.protagonist;
+      battleState.turn = 'player';
+      renderBattleUI(sceneContext);
+    }
+
+    function renderBattleUI(sceneContext) {
+      const sceneImageDiv = document.getElementById('scene-image');
+      const sceneImg = document.getElementById('scene-img');
+      const imagePlaceholder = document.getElementById('image-placeholder');
+      // 画像を戦闘用に切り替え（pregenerated/scene3-battle）
+      if (sceneImg) {
+        sceneImg.src = '/media/pregenerated/scene3-battle.jpg';
+        sceneImg.style.display = '';
+      }
+      if (imagePlaceholder) imagePlaceholder.style.display = 'none';
+
+      // 弾幕（テキストオーバーレイ）を非表示にして、その領域に戦闘コマンドを置く
+      const textOverlay = document.getElementById('scene-text-overlay');
+      if (textOverlay) {
+        textOverlay.innerHTML = '';
+        textOverlay.style.pointerEvents = 'auto';
+        textOverlay.style.display = 'block';
+      }
+
+      // 表示は敵名のみ（中央）
+      // 画像中央に敵名を表示 (上で取得した `sceneImageDiv` を利用)
+      // remove existing center name
+      const oldCenter = sceneImageDiv.querySelector('.battle-center-name');
+      if (oldCenter) oldCenter.remove();
+      const centerName = document.createElement('div');
+      centerName.className = 'battle-center-name';
+      centerName.textContent = battleState.enemy.name;
+      sceneImageDiv.appendChild(centerName);
+
+      // actions: 画像上に独立させるパネルとして配置（弾幕セクションとは分離）
+      let actionsPanel = sceneImageDiv.querySelector('.battle-actions-panel');
+      if (actionsPanel) actionsPanel.remove();
+      actionsPanel = document.createElement('div');
+      actionsPanel.className = 'battle-actions-panel';
+      actionsPanel.style.pointerEvents = 'auto';
+      const btnAttack = document.createElement('button'); btnAttack.className='battle-action-btn'; btnAttack.textContent='攻撃'; btnAttack.onclick = () => playerAction('attack');
+      const btnDefend = document.createElement('button'); btnDefend.className='battle-action-btn'; btnDefend.textContent='防御'; btnDefend.onclick = () => playerAction('defend');
+      const btnDodge = document.createElement('button'); btnDodge.className='battle-action-btn'; btnDodge.textContent='回避'; btnDodge.onclick = () => playerAction('dodge');
+      const btnItem = document.createElement('button'); btnItem.className='battle-action-btn'; btnItem.textContent='アイテム'; btnItem.onclick = () => playerAction('item');
+      actionsPanel.appendChild(btnAttack); actionsPanel.appendChild(btnDefend); actionsPanel.appendChild(btnDodge); actionsPanel.appendChild(btnItem);
+      sceneImageDiv.appendChild(actionsPanel);
+
+      // battle display (弾幕表示用): 毎回上書きして表示する領域
+      let battleDisplay = textOverlay.querySelector('.battle-display');
+      if (!battleDisplay) {
+        battleDisplay = document.createElement('div');
+        battleDisplay.className = 'battle-display';
+        battleDisplay.style.minHeight = '48px';
+        battleDisplay.style.marginBottom = '8px';
+        textOverlay.appendChild(battleDisplay);
+      }
+
+      // battle log area (履歴): 表示は残すが件数を制限
+      let log = textOverlay.querySelector('.battle-log');
+      if (!log) {
+        log = document.createElement('div');
+        log.className = 'battle-log';
+        log.id = 'battle-log';
+        textOverlay.appendChild(log);
+      }
+      appendBattleLog('戦闘開始！敵が現れた：' + battleState.enemy.name);
+      battleState.turn = 'player';
+      updateBattleUI();
+    }
+
+    function appendBattleLog(msg) {
+      const log = document.getElementById('battle-log');
+      const battleDisplay = document.querySelector('.battle-display');
+      if (!log && !battleDisplay) return;
+      // エスケープ
+      function escapeHtml(str) {
+        return (''+str).replace(/[&<>\"]/g, function(ch){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[ch] || ch; });
+      }
+      // 弾幕表示（上書きで1行ずつ表示）: 表示中の行は履歴に即追加せず、次の行が来たときに前の行を履歴へ移す方式
+      if (battleDisplay) {
+        // initialize pending buffer on battleState
+        if (!battleState) battleState = {};
+        if (!battleState._pendingLogs) battleState._pendingLogs = [];
+        // flush pending logs into visible history before showing the next message
+        if (battleState._pendingLogs.length > 0 && log) {
+          battleState._pendingLogs.forEach(m => {
+            const d = document.createElement('div'); d.textContent = m;
+            log.appendChild(d);
+          });
+          while (log.children.length > 2) log.removeChild(log.children[0]);
+          log.scrollTop = log.scrollHeight;
+          battleState._pendingLogs = [];
+        }
+        // show current message in battleDisplay, then store it as pending (not immediately in history)
+        typeWriterText(battleDisplay, escapeHtml(msg), 20, () => {
+          battleState._pendingLogs.push(msg);
+          // keep pending buffer small
+          while (battleState._pendingLogs.length > 2) battleState._pendingLogs.shift();
+        });
+      } else {
+        // battleDisplay がない場合は通常の履歴追加
+        const d = document.createElement('div'); d.textContent = msg;
+        log.appendChild(d);
+        while (log.children.length > 2) log.removeChild(log.children[0]);
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+
+    // イベントログへ追記 (メイン画面用)
+    function appendLog(msg) {
+      const logElMain = document.getElementById('log');
+      if (!logElMain) return;
+      const div = document.createElement('div');
+      div.className = 'log-entry action';
+      div.textContent = msg;
+      logElMain.appendChild(div);
+      logElMain.scrollTop = logElMain.scrollHeight;
+    }
+
+    function updateBattleUI() {
+      const textOverlay = document.getElementById('scene-text-overlay');
+      if (!textOverlay) return;
+      const enemyFill = textOverlay.querySelector('.hp-fill[data-role="enemy"]');
+      const protFill = textOverlay.querySelector('.hp-fill[data-role="protagonist"]');
+      const compFill = textOverlay.querySelector('.hp-fill[data-role="companion"]');
+      if (enemyFill) enemyFill.style.width = Math.max(0,Math.round((battleState.enemy.hp/battleState.enemy.maxHp)*100)) + '%';
+      if (protFill) protFill.style.width = Math.max(0,Math.round((battleState.protagonist.hp/battleState.protagonist.maxHp)*100)) + '%';
+      if (compFill) compFill.style.width = Math.max(0,Math.round((battleState.companion.hp/battleState.companion.maxHp)*100)) + '%';
+      // disable actions if not player's turn
+      textOverlay.querySelectorAll('.battle-action-btn').forEach(b => b.disabled = (battleState.turn !== 'player'));
+    }
+
+    function playerAction(action) {
+      if (!battleState || battleState.turn !== 'player') return;
+      switch(action) {
+        case 'attack': {
+          // 主人公攻撃
+          const p = battleState.protagonist;
+          const e = battleState.enemy;
+          const dmg1 = Math.max(1, p.atk - (e.def || 0));
+          e.hp -= dmg1;
+          appendBattleLog(`${p.name}の攻撃！${e.name}に${dmg1}ダメージ`);
+          if (e.hp <= 0) {
+            appendBattleLog(`${e.name} を倒した！`);
+            endBattle(true);
+            return;
+          }
+          // 相棒攻撃
+          const c = battleState.companion;
+          const dmg2 = Math.max(1, c.atk - (e.def || 0));
+          e.hp -= dmg2;
+          appendBattleLog(`${c.name}の追撃！${e.name}に${dmg2}ダメージ`);
+          if (e.hp <= 0) {
+            appendBattleLog(`${e.name} を倒した！`);
+            endBattle(true);
+            return;
+          }
+          break;
+        }
+        case 'defend': {
+          battleState.player.def += 2;
+          appendBattleLog(`${battleState.player.name}は防御の構え。次の被ダメージを軽減します。`);
+          break;
+        }
+        case 'dodge': {
+          // 回避は成功率で処理
+          const success = Math.random()*100 < 30 + (battleState.player.avoid - battleState.enemy.avoid);
+          if (success) {
+            appendBattleLog(`${battleState.player.name}は回避に成功した！次の敵の攻撃を回避`);
+            battleState._playerDodged = true;
+          } else {
+            appendBattleLog(`${battleState.player.name}の回避は失敗した。`);
+          }
+          break;
+        }
+        case 'item': {
+          // 簡易: 回復ポーションを1つ消費（実装は暫定）
+          const heal = 20;
+          battleState.player.hp = Math.min(battleState.player.maxHp, battleState.player.hp + heal);
+          appendBattleLog(`${battleState.player.name}はポーションを使った。HPが${heal}回復`);
+          break;
+        }
+      }
+      // end player turn
+      battleState.turn = 'enemy';
+      updateBattleUI();
+      // enemy acts after short delay
+      setTimeout(enemyTurn, 800);
+    }
+
+    function enemyTurn() {
+      if (!battleState || battleState.turn !== 'enemy') return;
+      // if player dodged
+      if (battleState._playerDodged) {
+        appendBattleLog(`${battleState.enemy.name}の攻撃は虚しく空を切った！`);
+        battleState._playerDodged = false;
+      } else {
+        // 敵は主人公を狙う
+        const dmg = Math.max(1, battleState.enemy.atk - (battleState.protagonist.def || 0));
+        battleState.protagonist.hp -= dmg;
+        appendBattleLog(`${battleState.enemy.name}の攻撃！${battleState.protagonist.name}は${dmg}ダメージを受けた`);
+      }
+      // reset temporary defense buff for protagonist
+      if (battleState.protagonist.def > 3) battleState.protagonist.def = 3;
+      // check protagonist defeat
+      if (battleState.protagonist.hp <= 0) {
+        appendBattleLog(`${battleState.protagonist.name}は倒れた…`);
+        endBattle(false);
+        return;
+      }
+      // back to player
+      battleState.turn = 'player';
+      updateBattleUI();
+    }
+
+    function endBattle(playerWon) {
+      // remove UI elements we added
+      const overlay = document.querySelector('.battle-overlay');
+      if (overlay) overlay.remove();
+      const sceneImageDiv = document.getElementById('scene-image');
+      if (sceneImageDiv) {
+        const panel = sceneImageDiv.querySelector('.battle-actions-panel');
+        if (panel) panel.remove();
+        const center = sceneImageDiv.querySelector('.battle-center-name');
+        if (center) center.remove();
+      }
+      const textOverlay = document.getElementById('scene-text-overlay');
+      if (textOverlay) {
+        textOverlay.innerHTML = '';
+        textOverlay.style.pointerEvents = 'none';
+      }
+      if (playerWon) {
+        appendLog('戦闘に勝利した！');
+        // 敵を倒した場合、ストーリーのscene4へ遷移（例）
+        showScene('scene4');
+      } else {
+        appendLog('あなたは敗北した…ゲームオーバー処理へ');
+        // 敗北時は簡易的にリロードやタイトルへ戻すなど
+        alert('ゲームオーバー');
+        window.location.reload();
+      }
+      // restore player's hp to gameState (簡易)
+      gameState.hp = Math.max(0, battleState.protagonist.hp);
+      // flush any pending battle messages into the battle-log before clearing state
+      if (battleState && battleState._pendingLogs && battleState._pendingLogs.length > 0) {
+        const log = document.getElementById('battle-log');
+        if (log) {
+          battleState._pendingLogs.forEach(m => {
+            const d = document.createElement('div'); d.textContent = m;
+            log.appendChild(d);
+          });
+          while (log.children.length > 2) log.removeChild(log.children[0]);
+          log.scrollTop = log.scrollHeight;
+        }
+      }
+      battleState = null;
+    }
+  </script>
+</body>
+</html>
