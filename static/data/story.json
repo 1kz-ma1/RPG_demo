@@ -4,9 +4,7 @@
         "id": "start",
         "text": "？？？「私は${companion_name}。あなたの名前は？",
         "image": "pregenerated/start.jpg",
-        "choices": [
-            {"text": "名前を教える", "next": "scene1"}
-        ]
+        "choices": []
     },
     {
       "id": "scene1",
@@ -167,6 +165,16 @@
     "choices": [
         {"text": "戦闘開始！", "next": "battle:golem"}
     ]
-}
+    },
+
+    {
+    "id":"rose",
+    "text": "どうやら、${playerName}はダンジョンの入り口に飛ばされてしまったようだ。\n\n${companion_name}「やっと目覚ましたよー...大丈夫？ これからどうする...？」」",
+    "image": "pregenerated/rose.jpg",
+    "choices": [
+        {"text": "もう一度入る", "next": "RETRY"},
+        {"text": "ゲームをやめる", "next": "QUIT"}
+    ]
+    }
 ]
 }

@@ -65,10 +65,21 @@
                 const list = document.createElement('div');
                 list.className = 'scene-choice-list';
                 list.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
+                // resolve template variables in choice text (e.g. ${companion_name})
+                const selComp = (function(){ try { return localStorage.getItem('selected_companion'); } catch(e){ return null; } })();
+                const companionObj = selComp ? (function(){ try { return JSON.parse(selComp); } catch(e){ return null; } })() : null;
+                const companionNameForBtn = (companionObj && companionObj.name) ? companionObj.name : '相棒';
+                const companionRoleForBtn = (companionObj && companionObj.role) ? companionObj.role : 'companion';
+                const playerNameForBtn = (gameState && gameState.playerName) ? gameState.playerName : '主人公';
                 choices.forEach((choice, idx) => {
                   const btn = document.createElement('button');
                   btn.className = 'scene-choice-btn';
-                  btn.textContent = choice.text;
+                  // replace known template vars safely
+                  let txt = (choice.text || '');
+                  try {
+                    txt = txt.replace(/\$\{companion_name\}/g, companionNameForBtn).replace(/\$\{companion_role\}/g, companionRoleForBtn).replace(/\$\{player_name\}/g, playerNameForBtn);
+                  } catch(e) {}
+                  btn.textContent = txt;
                   btn.onclick = (e) => {
                     e.stopPropagation();
                     overlay.remove();
@@ -105,7 +116,7 @@
                   window.__isTyping = window.__isTyping || false;
               // 事前定義された敵一覧（choice.next に "battle:KEY" を指定したときに使用）
               const ENEMY_DEFS = {
-                shadow: { id: 'shadow', name: '黒き影', hp: 40, maxHp: 40, atk: 7, def: 1, avoid: 8, exp: 24, drops: [{name:'小さな回復薬', qty:1}] },
+                shadow: { id: 'shadow', name: '黒き影', hp: 50, maxHp: 50, atk: 7, def: 1, avoid: 8, exp: 24, drops: [{name:'小さな回復薬', qty:1}] },
                 golem: { id: 'golem', name: 'グラン＝ゴーレム', hp: 120, maxHp: 120, atk: 16, def: 6, avoid: 2, exp: 120, drops: [{name:'大きな鉱石', qty:1}] }
               };
             // 弾幕テキスト進行用のグローバル変数
@@ -562,26 +573,73 @@
         input.style.fontSize = '16px';
         row.appendChild(input);
 
-        const ok = document.createElement('button');
-        ok.className = 'scene-choice-btn';
-        ok.textContent = '教える';
-        ok.onclick = (e) => {
-          e.stopPropagation();
+        // Confirm function (Enterで決定)
+        const confirmName = () => {
           const v = (input.value || '').trim() || '主人公';
           gameState.playerName = v;
           saveGame(gameState);
           try { localStorage.setItem('player_name', v); } catch(e){}
           // show small confirmation then remove overlay
-          inner.innerHTML = '';
           const conf = document.createElement('div');
-          conf.textContent = `相棒: 「よろしくね、${v}」`;
-          conf.style.color = '#fff';
-          conf.style.fontWeight = '700';
-          conf.style.fontSize = '20px';
           inner.appendChild(conf);
-          setTimeout(() => { try { overlay.remove(); } catch(e){} }, 900);
+          // remove overlay and show the companion's line in the text overlay area
+          setTimeout(() => {
+            try { overlay.remove(); } catch(e){}
+            try {
+              // prepare a short companion line in the text overlay (typewriter)
+              const companionName = (localStorage.getItem('selected_companion') ? JSON.parse(localStorage.getItem('selected_companion')).name : '相棒');
+              const protagonistName = v;
+              const line = `${companionName}「よろしくね、${protagonistName}」`;
+              // set as the only text block and display via typewriter
+              currentTextBlocks = [ line.replace(/\n/g, '<br>') ];
+              currentTextIndex = 0;
+              textOverlayEl = document.getElementById('scene-text-overlay');
+              if (textOverlayEl) textOverlayEl.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
+              // show the line, then present a single-choice overlay "よろしく！" which when selected
+              // will continue the scene: if the current scene has choices, show them; otherwise do nothing.
+              showNextTextBlock(() => {
+                try {
+                  const scene = (typeof storyData !== 'undefined' && storyData && storyData.scenes) ? storyData.scenes.find(s => s.id === window.currentSceneId) : null;
+                  if (scene && scene.choices && scene.choices.length > 0) {
+                    showChoicesOverlay(scene.choices, (c) => {
+                      if (c.next) {
+                        if (typeof c.next === 'string' && c.next.startsWith('battle:')) {
+                          const key = c.next.split(':',2)[1];
+                          const enemy = ENEMY_DEFS[key] || { id: key, name: key, hp: 40, maxHp: 40, atk: 6, def: 1, avoid: 5 };
+                          startBattle(enemy, scene);
+                        } else {
+                          showScene(c.next);
+                        }
+                      }
+                    });
+                  } else {
+                    // If the scene has no choices (e.g. start), present a single "よろしく！" choice
+                    showChoicesOverlay([{ text: 'よろしく！', next: 'AUTO_NEXT' }], (choice) => {
+                      if (choice.next === 'AUTO_NEXT') {
+                        try {
+                          if (storyData && Array.isArray(storyData.scenes)) {
+                            const idx = storyData.scenes.findIndex(s => s.id === window.currentSceneId);
+                            if (idx !== -1 && idx + 1 < storyData.scenes.length) {
+                              showScene(storyData.scenes[idx+1].id);
+                            }
+                          }
+                        } catch(e) { console.error('auto next error', e); }
+                      }
+                    });
+                  }
+                } catch(e) { console.error('post-name showNextTextBlock error', e); }
+              });
+            } catch(e) { console.error('confirmName post-remove error', e); }
+          }, 300);
         };
-        row.appendChild(ok);
+        // Replace explicit button with a small hint
+        const hint = document.createElement('div');
+        hint.style.color = '#eee';
+        hint.style.alignSelf = 'center';
+        hint.style.padding = '8px 12px';
+        hint.style.fontSize = '13px';
+        hint.textContent = 'Enterキーで決定';
+        row.appendChild(hint);
         inner.appendChild(row);
         overlay.appendChild(inner);
 
@@ -597,7 +655,18 @@
           }
           if (readyToAttach()) {
             setTimeout(() => { if (readyToAttach()) {
+              // remove only the underlying "名前を教える" choice button if present
+              try {
+                const existingChoiceOverlay = sceneImageDiv.querySelector('#scene-choice-overlay');
+                if (existingChoiceOverlay) {
+                  existingChoiceOverlay.querySelectorAll('.scene-choice-btn').forEach(btn => {
+                    try { if (btn.textContent && btn.textContent.trim() === '名前を教える') btn.remove(); } catch(e){}
+                  });
+                  if (existingChoiceOverlay.querySelectorAll('.scene-choice-btn').length === 0) existingChoiceOverlay.remove();
+                }
+              } catch(e){}
               // ensure overlay captures clicks and prevents scene-image click-through
+              try { sceneImageDiv._prevOnclick = sceneImageDiv.onclick; } catch(e){}
               sceneImageDiv.appendChild(overlay);
               sceneImageDiv.classList.remove('clickable');
               sceneImageDiv.onclick = null;
@@ -608,6 +677,17 @@
             if (readyToAttach()) {
               clearInterval(iv);
               setTimeout(() => { if (readyToAttach()) {
+                // remove only the underlying "名前を教える" choice button if present
+                try {
+                  const existingChoiceOverlay = sceneImageDiv.querySelector('#scene-choice-overlay');
+                  if (existingChoiceOverlay) {
+                    existingChoiceOverlay.querySelectorAll('.scene-choice-btn').forEach(btn => {
+                      try { if (btn.textContent && btn.textContent.trim() === '名前を教える') btn.remove(); } catch(e){}
+                    });
+                    if (existingChoiceOverlay.querySelectorAll('.scene-choice-btn').length === 0) existingChoiceOverlay.remove();
+                  }
+                } catch(e){}
+                try { sceneImageDiv._prevOnclick = sceneImageDiv.onclick; } catch(e){}
                 sceneImageDiv.appendChild(overlay);
                 sceneImageDiv.classList.remove('clickable');
                 sceneImageDiv.onclick = null;
@@ -619,7 +699,7 @@
 
         // prevent clicks inside overlay from bubbling to sceneImageDiv
         overlay.addEventListener('click', (e) => { e.stopPropagation(); });
-        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') ok.click(); });
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmName(); } });
       } catch (e) { console.error('showInlineNamePrompt error', e); }
     }
 
@@ -826,11 +906,10 @@
       console.log('シーン表示:', scene);
       // シーン1到達時、まだ主人公名が未設定ならインワールドな入力欄を表示して取得する
       try {
-        const storedName = localStorage.getItem('player_name');
-        // trigger inline name prompt on 'start' scene (or on scene1 as fallback)
-        if ((sceneId === 'start' || sceneId === 'scene1') && !(gameState && gameState.playerName) && !storedName) {
-          setTimeout(() => { showInlineNamePrompt(); }, 120);
-        }
+        // 体験版仕様: 常に起動時にインワールドで名前を聞く（保存があっても毎回）
+          if (sceneId === 'start') {
+            setTimeout(() => { showInlineNamePrompt(); }, 120);
+          }
       } catch (e) {}
     }
 
@@ -1176,6 +1255,19 @@
         case 'defend': {
           battleState.player.def += 2;
           appendBattleLog(`${battleState.player.name}は防御の構え。次の被ダメージを軽減します。`);
+          // 相棒が代わりに攻撃
+          const c = battleState.companion;
+          const e = battleState.enemy;
+          if (c && e && e.hp > 0) {
+            const dmg = Math.max(1, c.atk - (e.def || 0));
+            e.hp -= dmg;
+            appendBattleLog(`${c.name}の援護攻撃！${e.name}に${dmg}ダメージ`);
+            if (e.hp <= 0) {
+              appendBattleLog(`${e.name} を倒した！`);
+              endBattle(true);
+              return;
+            }
+          }
           break;
         }
         case 'dodge': {
@@ -1276,20 +1368,44 @@
             const battleLogEl = document.getElementById('battle-log');
             if (battleLogEl) battleLogEl.innerHTML = '';
             if (textOverlay) {
+              // Use the normal typewriter/弾幕 display for the companion's victory line
               textOverlay.innerHTML = '';
               const companionName = (battleState && battleState.companion && battleState.companion.name) ? battleState.companion.name : (localStorage.getItem('selected_companion') ? JSON.parse(localStorage.getItem('selected_companion')).name : '相棒');
               const protagonistName = (battleState && battleState.protagonist && battleState.protagonist.name) ? battleState.protagonist.name : '主人公';
-              const cheer = document.createElement('div');
-              cheer.className = 'victory-cheer';
-              cheer.style.fontSize = '32px';
-              cheer.style.fontWeight = '800';
-              cheer.style.textAlign = 'center';
-              cheer.style.padding = '8px 16px';
-              cheer.style.color = '#fff';
-              cheer.style.textShadow = '0 4px 12px rgba(0,0,0,0.8)';
-              cheer.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
-              cheer.textContent = `${companionName}「やったね！${protagonistName}！」`;
-              textOverlay.appendChild(cheer);
+              const line = `${companionName}「やったね！${protagonistName}！」`;
+              // set as the only text block and display via existing showNextTextBlock flow
+              currentTextBlocks = [ line.replace(/\n/g,'<br>') ];
+              currentTextIndex = 0;
+              textOverlayEl = document.getElementById('scene-text-overlay');
+              if (textOverlayEl) textOverlayEl.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
+              // show it; ensure both ▼ と画面クリックで進めるよう補助ハンドラを追加
+              showNextTextBlock(() => {});
+              try {
+                // add a one-time click handler on the scene image that mirrors ▼ behaviour
+                const sceneImgDiv = document.getElementById('scene-image');
+                if (sceneImgDiv) {
+                  const clickHandler = function onSceneClick(e) {
+                    try {
+                      const nb = sceneImgDiv.querySelector('.scene-text-next');
+                      if (nb && nb.style.display === 'block') {
+                        // hide ▼ and advance text (reuse same logic as showNextTextBlock onclick)
+                        nb.style.display = 'none';
+                        currentTextIndex++;
+                        if (currentTextIndex < currentTextBlocks.length) {
+                          showNextTextBlock();
+                        } else {
+                          sceneImgDiv.removeEventListener('click', onSceneClick);
+                          sceneImgDiv.classList.remove('clickable');
+                          // 弾幕が全て終わったら戦闘演出を終了し次のシーンへ
+                          if (typeof doCleanup === 'function') doCleanup();
+                        }
+                      }
+                    } catch(err) { console.error('scene click handler error', err); }
+                  };
+                  sceneImgDiv.classList.add('clickable');
+                  sceneImgDiv.addEventListener('click', clickHandler);
+                }
+              } catch(e) { console.error('add scene click helper error', e); }
             }
           } catch (e) { console.error('勝利演出エラー', e); }
         }
@@ -1345,18 +1461,7 @@
                 // clear battle state
                 battleState = null;
                 // show scene1 then narration and choices
-                showScene('scene1');
-                setTimeout(() => {
-                  const narr = `どうやら、${protagonistName}はダンジョンの入り口に飛ばされてしまったようだ。`;
-                  currentTextBlocks = [narr.replace(/\n/g,'<br>')];
-                  currentTextIndex = 0;
-                  textOverlayEl = document.getElementById('scene-text-overlay');
-                  if (textOverlayEl) textOverlayEl.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
-                  showNextTextBlock(() => {
-                    showChoicesOverlay([
-                      { text: 'もう一度入る', next: 'RETRY' },
-                      { text: 'ゲームをやめる', next: 'QUIT' }
-                    ], (choice) => {
+                showScene('rose');
                       if (choice.next === 'RETRY') {
                         gameState.hp = gameState.maxHp || 100;
                         saveGame(gameState);
@@ -1365,9 +1470,6 @@
                         window.location.href = 'index.html';
                       }
                     });
-                  });
-                }, 180);
-              }, { once: true });
             }
           } catch (e) { console.error('敗北オーバーレイ作成エラー', e); }
         }
