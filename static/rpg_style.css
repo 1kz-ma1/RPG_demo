@@ -147,6 +147,7 @@ body {
   position: absolute;
   left: 0; right: 0; bottom: 0;
   padding: 32px 32px 24px 32px;
+  /* 戦闘中は透明寄りにして画像が見えるようにするため、in-battle クラスで上書き */
   background: linear-gradient(0deg, rgba(0,0,0,0.9) 47%, rgba(0,0,0,0.4) 85%, rgba(0,0,0,0.01) 100%) !important;
   color: #fff !important;
   font-size: 18px;
@@ -159,6 +160,15 @@ body {
   font-family: 'Noto Sans JP', 'Helvetica Neue', sans-serif;
   border-radius: 0 0 8px 8px;
   user-select: none;
+}
+/* 戦闘時は overlay を目立たなくする */
+.scene-text-overlay.in-battle {
+  /* 完全に暗転を無くす */
+  background: transparent !important;
+  color: #fff !important;
+  text-shadow: none;
+  /* 戦闘中は明朝系を使用して雰囲気を統一 */
+  font-family: 'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif !important;
 }
 /* ▼ボタンを画像レイヤー右下に常に浮かせる */
 .scene-text-next {
@@ -180,6 +190,7 @@ body {
   max-width: 100%;
   max-height: 100%;
   object-fit: cover;
+}
 
 /* 戦闘UI */
 .battle-overlay {
@@ -236,9 +247,10 @@ body {
   text-shadow: 0 8px 30px rgba(0,0,0,0.7), 0 0 6px #8b0000;
   pointer-events: none;
 }
-.battle-log { max-height:160px; overflow:auto; margin-top:12px; background: rgba(0,0,0,0.3); padding:8px; border-radius:6px; font-size:14px; }
-  border-radius: 2px;
-}
+
+/* 戦闘時の中央テキスト（大きい敵名）は常時非表示にする（UI干渉を避けるため） */
+.battle-center-name { display: none !important; }
+.battle-log { max-height:160px; overflow:auto; margin-top:12px; background: rgba(0,0,0,0.3); padding:8px; border-radius:2px; font-size:14px; font-family: 'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif; }
 /* actions panel placed on top of image (not inside the text overlay) */
 .battle-actions-panel {
   position: absolute;
@@ -249,6 +261,7 @@ body {
   width: calc(100% - 48px);
   max-width: 720px;
   /* 下部の弾幕領域の上に配置する（画像中央下寄せ） */
+  /* 上に上げてログと被らないようにする */
   bottom: 120px;
   display: flex;
   gap: 12px;
@@ -260,12 +273,37 @@ body {
   background: linear-gradient(180deg, rgba(0,0,0,0.0), rgba(0,0,0,0.06));
   padding: 6px;
   border-radius: 10px;
+  font-family: 'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif;
 }
 .battle-display {
   color: #fff;
   font-size: 18px;
   line-height: 1.8;
   min-height: 48px;
+  font-family: 'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif;
+}
+
+/* 戦闘結果演出 */
+.battle-result {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  transform: translate(-50%, -50%) scale(0.92);
+  font-size: 48px;
+  font-weight: 900;
+  color: #fff;
+  padding: 18px 28px;
+  border-radius: 12px;
+  text-shadow: 0 8px 30px rgba(0,0,0,0.7), 0 0 10px #ff7b7b;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  z-index: 4800;
+  opacity: 0;
+  transition: transform 260ms ease, opacity 260ms ease;
+  font-family: 'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif;
+}
+.battle-result.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
 }
 
 .battle-action-btn {
@@ -280,6 +318,7 @@ body {
   letter-spacing: 0.6px;
   box-shadow: 0 8px 22px rgba(0,0,0,0.6), inset 0 -2px 0 rgba(0,0,0,0.35);
   transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+  font-family: 'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif;
 }
 .battle-action-btn:hover {
   transform: translateY(-4px);
@@ -290,7 +329,7 @@ body {
 
 /* 小さい画面ではボタンを少し大きめに縦積みに近づける */
 @media (max-width: 640px) {
-  .battle-actions-panel { left: 12px; right: 12px; bottom: 96px; gap: 8px; }
+  .battle-actions-panel { left: 12px; right: 12px; bottom: 140px; gap: 8px; }
   .battle-action-btn { padding: 14px 8px; font-size: 15px; }
 }
 .scene-log {

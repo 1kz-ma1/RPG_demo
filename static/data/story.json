@@ -1,6 +1,14 @@
 {
   "scenes": [
     {
+        "id": "start",
+        "text": "？？？「私は${companion_name}。あなたの名前は？",
+        "image": "pregenerated/start.jpg",
+        "choices": [
+            {"text": "名前を教える", "next": "scene1"}
+        ]
+    },
+    {
       "id": "scene1",
       "text": "夕暮れの風が吹き抜ける。\n薄暗い森の奥に、ぽっかりと口を開けた古代遺跡が現れる。\n\n${companion_name}「……ここが“ルーメンの迷宮”。ねぇ、緊張してたりする？」",
       "image": "pregenerated/scene1.jpg",
@@ -91,7 +99,7 @@
       "text": "影が反応し、鋭く襲いかかってくる！\n\n${companion_name}「戦うしかないよ！いくよ！」",
       "image": "pregenerated/scene3-B.jpg",
       "choices": [
-        {"text": "奥へ進む", "next": "scene4"}
+        {"text": "戦闘開始！", "next": "battle:shadow"}
       ]
     },
     {
@@ -112,9 +120,53 @@
     },
     {
       "id": "scene4",
-      "text": "薄闇の奥で、何かが光った。\nそれは、迷宮があなたたちを“認めた証”のように見えた。\n\n${companion_name}「行こっか。ここから先が、本当の探索だよ。」\n\n（体験版はここまで！続きは本編で）",
-      "image": "ruins_deep.jpg",
-      "choices": []
-    }
+      "text": "薄闇の奥で、何かが光った。\nそれは、迷宮があなたたちを“認めた証”のように見えた。\n\n${companion_name}「って...あれ..？ まだ奥に道があるよ！」",
+      "image": "pregenerated/scene4.jpg",
+      "choices": [
+        {"text": "進む", "next": "scene5"}
+      ]
+    },
+
+{
+  "id": "scene5",
+  "text": "光の先には、石で組まれた長い通路が続いていた。\n壁には古い紋様が刻まれており、かすかに脈動しているように見える。\n\n${companion_name}「……ねぇ、この雰囲気……さっきより明らかに“何かいる”感じしない？」",
+  "image": "pregenerated/scene5.jpg",
+  "choices": [
+    {"text": "紋様に触れてみる", "next": "scene5_1"},
+    {"text": "慎重に距離を取る", "next": "scene5_2"},
+    {"text": "相棒に意見を聞く", "next": "scene5_3"}
   ]
+},
+
+
+{
+    "id": "scene5_1",  
+    "text": "あなたが紋様に触れた瞬間、通路全体が低く震えた。\n\n${companion_name}「ちょっ……！今の、明らかに何か起動したよね！？」",
+    "image": "pregenerated/scene5-1.jpg",
+    "choices": [{"text": "進む", "next": "scene6"}]
+},
+
+{
+    "id": "scene5_2",  
+    "text": "慎重に距離を取りながら進むと、奥から重い響きが伝わってきた。\n\n${companion_name}「……今の音、歩いてる……？何か来てるよ……。」",
+    "image": "pregenerated/scene5-1.jpg",  
+    "choices": [{"text": "進む", "next": "scene6"}]
+    },
+
+{
+    "id": "scene5_3",  
+    "text": "${companion_name}「私は……なんかすごく嫌な予感しかしない。けど、止まっててもしょうがないよね。」\n\n通路の奥で、低く唸るような音が響く。",
+    "image": "pregenerated/scene5-1.jpg",  
+    "choices": [{"text": "進む", "next": "scene6"}]
+    },
+
+    {
+    "id": "scene6",
+    "text": "通路の突き当たりに開けた巨大な部屋。\nその中心で、石柱に囲まれた“何か”がゆっくりと動き出した。\n\n地響きとともに黒い影がせり上がり――\nそれは、古代の守護者《グラン＝ゴーレム》だった。\n\n${companion_name}「……っ！ダメだよ……！あれ、桁違いに強い……！！」",
+    "image": "pregenerated/scene6.jpg",
+    "choices": [
+        {"text": "戦闘開始！", "next": "battle:golem"}
+    ]
+}
+]
 }

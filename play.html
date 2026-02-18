@@ -5,8 +5,9 @@
     <title>冒険</title>
     <link rel="stylesheet" href="static/rpg_style.css">
     <link rel="stylesheet" href="static/rpg_choice.css">
-
-    <div class="layout">
+</head>
+<body>
+  <div class="layout">
     <div class="header">
       <h1 id="scene-title">⚔ 冒険</h1>
       <div class="header-stats">
@@ -75,11 +76,38 @@
                   };
                   list.appendChild(btn);
                 });
-                overlay.appendChild(list);
-                // 画像レイヤーに重ねて追加
-                const sceneImageDiv = document.getElementById('scene-image');
-                if (sceneImageDiv) sceneImageDiv.appendChild(overlay);
+                  overlay.appendChild(list);
+                  // 画像レイヤーに重ねて追加
+                  const sceneImageDiv = document.getElementById('scene-image');
+                  // showChoicesOverlay は typewriter が終わるまで待機する（即表示を防ぐ）
+                  function attachOverlayWhenReady() {
+                    // typing が終わるまで待機してから表示（タイムアウトを設けず厳格に待つ）
+                    function readyToAttach() {
+                      const nextBtn = document.querySelector('.scene-text-next');
+                      const nextVisible = nextBtn && nextBtn.style && nextBtn.style.display === 'block';
+                      return !window.__isTyping && !nextVisible;
+                    }
+                    if (readyToAttach()) {
+                      // 小さな余裕時間を置いてから実際に追加（タイプ終了直後の競合を避ける）
+                      setTimeout(() => { if (readyToAttach() && sceneImageDiv) sceneImageDiv.appendChild(overlay); }, 160);
+                      return;
+                    }
+                    const iv = setInterval(() => {
+                      if (readyToAttach()) {
+                        clearInterval(iv);
+                        setTimeout(() => { if (readyToAttach() && sceneImageDiv) sceneImageDiv.appendChild(overlay); }, 160);
+                      }
+                    }, 50);
+                  }
+                  attachOverlayWhenReady();
               }
+                  // typing フラグ（全体の typewriter 実行中フラグ）
+                  window.__isTyping = window.__isTyping || false;
+              // 事前定義された敵一覧（choice.next に "battle:KEY" を指定したときに使用）
+              const ENEMY_DEFS = {
+                shadow: { id: 'shadow', name: '黒き影', hp: 40, maxHp: 40, atk: 7, def: 1, avoid: 8, exp: 24, drops: [{name:'小さな回復薬', qty:1}] },
+                golem: { id: 'golem', name: 'グラン＝ゴーレム', hp: 120, maxHp: 120, atk: 16, def: 6, avoid: 2, exp: 120, drops: [{name:'大きな鉱石', qty:1}] }
+              };
             // 弾幕テキスト進行用のグローバル変数
             let currentTextBlocks = [];
             let currentTextIndex = 0;
@@ -128,7 +156,23 @@
                   return;
                 }
                 typeWriterText(textOverlayEl, currentTextBlocks[currentTextIndex], 28, () => {
+                  // 最後のブロックが完了したタイミングで、scene6 の場合は自動でコールバック（戦闘開始）する
+                  const isLastBlock = (currentTextIndex === currentTextBlocks.length - 1);
+                  if (isLastBlock && (window.currentSceneId === 'scene6' || window.currentSceneId === 'scene3B')) {
+                    console.log('[showNextTextBlock] final block reached for', window.currentSceneId, '-> showing ▼ then invoking callback');
+                    // 自動戦闘開始シーンでも、タイプ完了を明示するため▼を一瞬表示してからコールバックを実行する
+                    try {
+                      nextBtnEl.style.display = 'block';
+                      window.__nextShown = true;
+                    } catch (e) {}
+                    // 小さな遅延を置いて競合を避けつつコールバック（戦闘開始）を呼ぶ
+                    setTimeout(() => { if (callback) callback(); }, 140);
+                    return;
+                  }
+                  // ▼が表示されたことを記録
                   nextBtnEl.style.display = 'block';
+                  window.__nextShown = true;
+                  console.log('[showNextTextBlock] next button shown');
                 });
               } else {
                 // テキストが空の場合でもcallbackを呼ぶ
@@ -139,9 +183,12 @@
           function typeWriterText(element, html, speed = 28, callback) {
             element.innerHTML = '';
             let i = 0;
+            // typing フラグを立てる
+            window.__isTyping = true;
             // HTMLタグを考慮して1文字ずつ出す
             function type() {
               if (i >= html.length) {
+                window.__isTyping = false;
                 if (callback) callback();
                 return;
               }
@@ -161,7 +208,7 @@
             }
             type();
           }
-        // --- 進行・ステータス保存雛形 ---
+          // --- 進行・ステータス保存雛形 ---
         const SAVE_KEY = 'rpg_save';
 
         function saveGame(state) {
@@ -185,6 +232,7 @@
           level: 1,
           hp: 100,
           maxHp: 100,
+          exp: 0,
           log: [],
           sceneId: 'start',
           items: []
@@ -447,11 +495,133 @@
       console.log('ストーリー', storyData);
       console.log('キャラ', charData);
       console.log('アイテム', itemData);
-      // 例: 最初のシーンを表示
-      showScene('scene1');
+      // 起動時はまずシーンを表示してから、シーン内で名前入力を行う（世界観を保つ）
+      const startGame = () => {
+        // prefer a scene with id 'start' if present in storyData
+        try {
+          const hasStart = story && story.scenes && Array.isArray(story.scenes) && story.scenes.find(s => s.id === 'start');
+          if (hasStart) {
+            showScene('start');
+            return;
+          }
+        } catch (e) {}
+        showScene('scene1');
+      };
+      // restore saved player name if present
+      try {
+        const saved = loadGame();
+        if (saved && saved.playerName) gameState.playerName = saved.playerName;
+      } catch(e) {}
+      const storedName = localStorage.getItem('player_name');
+      if (!gameState.playerName && storedName) gameState.playerName = storedName;
+      // always start scene1 immediately; inline prompt will appear inside scene if needed
+      startGame();
     }).catch(e => {
       alert('データ読み込みエラー: ' + e);
     });
+
+    // 主人公名入力ダイアログ
+    // 画面内（シーン上）で名前を聞くインライン入力（世界観を壊さない）
+    function showInlineNamePrompt() {
+      try {
+        // create an overlay similar to choice overlay so it sits above the scene and blocks clicks
+        // avoid duplicating if already present
+        const existing = document.getElementById('scene-name-overlay');
+        if (existing) return;
+        const overlay = document.createElement('div');
+        overlay.id = 'scene-name-overlay';
+        overlay.className = 'scene-choice-overlay';
+        overlay.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
+
+        const inner = document.createElement('div');
+        inner.className = 'scene-choice-list';
+        inner.style.display = 'flex';
+        inner.style.flexDirection = 'column';
+        inner.style.alignItems = 'stretch';
+        inner.style.background = 'rgba(0,0,0,0.45)';
+        inner.style.padding = '12px';
+        inner.style.borderRadius = '8px';
+        inner.style.maxWidth = '720px';
+
+        const prompt = document.createElement('div');
+        prompt.textContent = '相棒: 「あの…あなたの名前は何ていうの？」';
+        prompt.style.color = '#fff';
+        prompt.style.marginBottom = '8px';
+        inner.appendChild(prompt);
+
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.gap = '8px';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = '主人公の名前';
+        input.className = 'scene-choice-input';
+        input.style.flex = '1';
+        input.style.padding = '8px';
+        input.style.fontSize = '16px';
+        row.appendChild(input);
+
+        const ok = document.createElement('button');
+        ok.className = 'scene-choice-btn';
+        ok.textContent = '教える';
+        ok.onclick = (e) => {
+          e.stopPropagation();
+          const v = (input.value || '').trim() || '主人公';
+          gameState.playerName = v;
+          saveGame(gameState);
+          try { localStorage.setItem('player_name', v); } catch(e){}
+          // show small confirmation then remove overlay
+          inner.innerHTML = '';
+          const conf = document.createElement('div');
+          conf.textContent = `相棒: 「よろしくね、${v}」`;
+          conf.style.color = '#fff';
+          conf.style.fontWeight = '700';
+          conf.style.fontSize = '20px';
+          inner.appendChild(conf);
+          setTimeout(() => { try { overlay.remove(); } catch(e){} }, 900);
+        };
+        row.appendChild(ok);
+        inner.appendChild(row);
+        overlay.appendChild(inner);
+
+        const sceneImageDiv = document.getElementById('scene-image');
+        if (!sceneImageDiv) return;
+
+        // attach only when ready (no typing & no next visible), like choices
+        function attachOverlayWhenReady() {
+          function readyToAttach() {
+            const nextBtn = document.querySelector('.scene-text-next');
+            const nextVisible = nextBtn && nextBtn.style && nextBtn.style.display === 'block';
+            return !window.__isTyping && !nextVisible;
+          }
+          if (readyToAttach()) {
+            setTimeout(() => { if (readyToAttach()) {
+              // ensure overlay captures clicks and prevents scene-image click-through
+              sceneImageDiv.appendChild(overlay);
+              sceneImageDiv.classList.remove('clickable');
+              sceneImageDiv.onclick = null;
+            } }, 140);
+            return;
+          }
+          const iv = setInterval(() => {
+            if (readyToAttach()) {
+              clearInterval(iv);
+              setTimeout(() => { if (readyToAttach()) {
+                sceneImageDiv.appendChild(overlay);
+                sceneImageDiv.classList.remove('clickable');
+                sceneImageDiv.onclick = null;
+              } }, 140);
+            }
+          }, 50);
+        }
+        attachOverlayWhenReady();
+
+        // prevent clicks inside overlay from bubbling to sceneImageDiv
+        overlay.addEventListener('click', (e) => { e.stopPropagation(); });
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') ok.click(); });
+      } catch (e) { console.error('showInlineNamePrompt error', e); }
+    }
 
     // シーン表示の雛形
     function showScene(sceneId) {
@@ -492,17 +662,13 @@
         console.log("storyDataまたはscenesが未定義");
       }
       const scene = storyData.scenes.find(s => s.id === sceneId);
+      // 現在表示中のシーンIDをグローバルに保持（弾幕完了時の自動処理判定用）
+      window.currentSceneId = sceneId;
       if (!scene) {
         alert('シーンが見つかりません: ' + sceneId);
         return;
       }
-      // 戦闘トリガー: scene3Bは戦闘に移行
-      if (scene.id === 'scene3B') {
-        // 敵ステータスの簡易定義（必要に応じてstory.jsonや別定義へ移動可）
-        const enemy = { id: 'shadow', name: '黒き影', hp: 40, maxHp: 40, atk: 7, def: 1, avoid: 8 };
-        startBattle(enemy, scene);
-        return;
-      }
+      // 以前は scene3B で即時戦闘開始していたが、弾幕（セリフ）完了後に開始するよう変更
       if (currentTextBlocks.length > 0) {
         showNextTextBlock(() => {
           // 弾幕テキストをすべて出力しきったタイミングでデバッグ出力
@@ -510,8 +676,16 @@
           if (scene.choices && Array.isArray(scene.choices) && scene.choices.length > 0) {
             console.log('[選択肢トリガー] シーンID:', sceneId, 'choices:', scene.choices);
             showChoicesOverlay(scene.choices, (choice) => {
-              // 選択肢クリック時、次のシーンへ
-              if (choice.next) showScene(choice.next);
+              // 選択肢クリック時、'battle:KEY' なら戦闘開始、そうでなければ次のシーンへ
+              if (choice.next) {
+                if (typeof choice.next === 'string' && choice.next.startsWith('battle:')) {
+                  const key = choice.next.split(':',2)[1];
+                  const enemy = ENEMY_DEFS[key] || { id: key, name: key, hp: 40, maxHp: 40, atk: 6, def: 1, avoid: 5 };
+                  startBattle(enemy, scene);
+                } else {
+                  showScene(choice.next);
+                }
+              }
             });
           } else {
             console.log('[選択肢トリガー] シーンID:', sceneId, '→ 選択肢なし');
@@ -525,7 +699,15 @@
           console.log('[弾幕完了:ダミー] シーンID:', sceneId, 'currentTextIndex:', currentTextIndex, 'currentTextBlocks:', currentTextBlocks);
           console.log('[選択肢トリガー] シーンID:', sceneId, 'choices:', scene.choices);
           showChoicesOverlay(scene.choices, (choice) => {
-            if (choice.next) showScene(choice.next);
+            if (choice.next) {
+              if (typeof choice.next === 'string' && choice.next.startsWith('battle:')) {
+                const key = choice.next.split(':',2)[1];
+                const enemy = ENEMY_DEFS[key] || { id: key, name: key, hp: 40, maxHp: 40, atk: 6, def: 1, avoid: 5 };
+                startBattle(enemy, scene);
+              } else {
+                showScene(choice.next);
+              }
+            }
           });
         });
       } else {
@@ -564,14 +746,29 @@
       textOverlayEl = document.getElementById('scene-text-overlay');
       if (textOverlayEl) textOverlayEl.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
       showNextTextBlock(() => {
-        // %トリガーまたは弾幕完了時に選択肢
-        if (
+        // %トリガーまたは弾幕完了時に選択肢、または特定シーンで戦闘開始
+        const atTextEnd = (
           (currentTextBlocks.length > 0 && currentTextBlocks[currentTextBlocks.length - 1] === '%' && currentTextIndex === currentTextBlocks.length - 1)
           || (currentTextBlocks.length > 0 && currentTextBlocks[currentTextBlocks.length - 1] !== '%' && currentTextIndex === currentTextBlocks.length)
-        ) {
+        );
+        if (atTextEnd) {
+          // scene6は弾幕（セリフ）が終わったタイミングでゴーレム戦を開始
+          if (scene.id === 'scene6') {
+            const enemy = { id: 'golem', name: 'グラン＝ゴーレム', hp: 120, maxHp: 120, atk: 16, def: 6, avoid: 2 };
+            startBattle(enemy, scene);
+            return;
+          }
           if (scene.choices && Array.isArray(scene.choices) && scene.choices.length > 0) {
             showChoicesOverlay(scene.choices, (choice) => {
-              if (choice.next) showScene(choice.next);
+              if (choice.next) {
+                if (typeof choice.next === 'string' && choice.next.startsWith('battle:')) {
+                  const key = choice.next.split(':',2)[1];
+                  const enemy = ENEMY_DEFS[key] || { id: key, name: key, hp: 40, maxHp: 40, atk: 6, def: 1, avoid: 5 };
+                  startBattle(enemy, scene);
+                } else {
+                  showScene(choice.next);
+                }
+              }
             });
           }
         }
@@ -627,6 +824,14 @@
         }
       }
       console.log('シーン表示:', scene);
+      // シーン1到達時、まだ主人公名が未設定ならインワールドな入力欄を表示して取得する
+      try {
+        const storedName = localStorage.getItem('player_name');
+        // trigger inline name prompt on 'start' scene (or on scene1 as fallback)
+        if ((sceneId === 'start' || sceneId === 'scene1') && !(gameState && gameState.playerName) && !storedName) {
+          setTimeout(() => { showInlineNamePrompt(); }, 120);
+        }
+      } catch (e) {}
     }
 
     // --- 戦闘ロジック ---
@@ -638,6 +843,16 @@
       if (battleState._started) return;
       battleState._started = true;
       battleState.enemy = Object.assign({}, enemy);
+      // 入場時に残っているUIを完全に消す（残った▼や選択肢など）
+      try {
+        // remove any next arrows
+        document.querySelectorAll('.scene-text-next').forEach(n => n.remove());
+        // remove choice overlay if any
+        const co = document.getElementById('scene-choice-overlay'); if (co) co.remove();
+        // clear scene-image click
+        const sid = document.getElementById('scene-image'); if (sid) { sid.classList.remove('clickable'); sid.onclick = null; }
+        window.__nextShown = false;
+      } catch (e) { console.warn('startBattle cleanup error', e); }
       // プレイヤー側ステータス: 主人公 + 相棒。相棒のatkの2倍が主人公のatk
       const sel = localStorage.getItem('selected_companion');
       const companionName = sel ? JSON.parse(sel).name : '相棒';
@@ -645,7 +860,7 @@
       const companionDefault = { hp: 40, maxHp: 40, atk: 8, def: 2, avoid: 6 };
       battleState.companion = Object.assign({}, companionDefault, { name: companionName });
       battleState.protagonist = {
-        name: '主人公',
+        name: (gameState && gameState.playerName) ? gameState.playerName : '主人公',
         hp: gameState.hp || 100,
         maxHp: gameState.maxHp || 100,
         atk: (battleState.companion.atk || companionDefault.atk) * 2,
@@ -655,17 +870,87 @@
       // convenience alias for older code paths
       battleState.player = battleState.protagonist;
       battleState.turn = 'player';
+      // 回復制限: 体験版では回復は最大3回まで
+      battleState.healsUsed = 0;
+      battleState.healLimit = 3;
       renderBattleUI(sceneContext);
+    }
+
+    // --- 報酬・経験処理 ---
+    function awardRewards(enemy, resultElem) {
+      const exp = (enemy && enemy.exp) ? enemy.exp : 20;
+      const drops = (enemy && enemy.drops) ? enemy.drops : [];
+      // アイテム獲得（簡易）
+      if (!gameState.items) gameState.items = [];
+      const dropText = drops.map(d => {
+        // add to inventory (simplified: push name multiple times)
+        for (let i=0;i<(d.qty||1);i++) gameState.items.push(d.name);
+        return d.qty ? `${d.name} x${d.qty}` : d.name;
+      }).join(', ') || 'なし';
+      // 経験付与
+      gameState.exp = (gameState.exp || 0) + exp;
+      saveGame(gameState);
+      // 表示
+      if (resultElem) {
+        const info = document.createElement('div');
+        info.className = 'battle-result-info';
+        info.style.fontSize = '16px';
+        info.style.marginTop = '8px';
+        info.textContent = `獲得: ${dropText}　経験 +${exp}`;
+        resultElem.appendChild(info);
+      }
+      // レベルアップ判定
+      checkLevelUp(resultElem);
+    }
+
+    function checkLevelUp(resultElem) {
+      // 簡易: レベルアップに必要な経験値は level * 100
+      if (!gameState) return;
+      let leveled = false;
+      while ((gameState.exp || 0) >= (gameState.level * 100)) {
+        gameState.exp -= gameState.level * 100;
+        gameState.level = (gameState.level || 1) + 1;
+        // HP増加など
+        gameState.maxHp = (gameState.maxHp || 100) + 10;
+        gameState.hp = Math.min(gameState.maxHp, (gameState.hp || gameState.maxHp));
+        leveled = true;
+      }
+      if (leveled) {
+        saveGame(gameState);
+        appendLog(`レベルアップ！現在レベル: ${gameState.level}`);
+        if (resultElem) {
+          const lv = document.createElement('div');
+          lv.className = 'battle-result-levelup';
+          lv.style.fontSize = '18px';
+          lv.style.marginTop = '6px';
+          lv.style.fontWeight = '800';
+          lv.textContent = `レベルアップ！ 現在レベル ${gameState.level}`;
+          resultElem.appendChild(lv);
+        }
+      }
     }
 
     function renderBattleUI(sceneContext) {
       const sceneImageDiv = document.getElementById('scene-image');
       const sceneImg = document.getElementById('scene-img');
       const imagePlaceholder = document.getElementById('image-placeholder');
-      // 画像を戦闘用に切り替え（pregenerated/scene3-battle）
+      // 画像を戦闘用に切り替え。sceneContext.image があればそれを優先して表示する
       if (sceneImg) {
-        sceneImg.src = 'media/pregenerated/scene3-battle.jpg';
-        sceneImg.style.display = '';
+        try {
+          let imgPath = (sceneContext && sceneContext.image) ? sceneContext.image : 'pregenerated/scene3-battle.jpg';
+          if (imgPath.startsWith('pregenerated/')) {
+            imgPath = 'media/pregenerated/' + imgPath.substring('pregenerated/'.length);
+          } else if (imgPath.startsWith('/')) {
+            // keep absolute if provided (but typically we use repo-relative)
+            imgPath = imgPath.slice(1);
+          } else if (!imgPath.startsWith('media/')) {
+            imgPath = 'media/characters/' + imgPath;
+          }
+          sceneImg.src = imgPath;
+          sceneImg.style.display = '';
+        } catch (e) {
+          console.error('renderBattleUI image set error', e);
+        }
       }
       if (imagePlaceholder) imagePlaceholder.style.display = 'none';
 
@@ -673,9 +958,19 @@
       const textOverlay = document.getElementById('scene-text-overlay');
       if (textOverlay) {
         textOverlay.innerHTML = '';
+        // 戦闘中フラグ用クラスを追加（背景を軽くするため）
+        textOverlay.classList.add('in-battle');
         textOverlay.style.pointerEvents = 'auto';
         textOverlay.style.display = 'block';
       }
+
+      // もし▼（scene-text-next）が残っていれば確実に削除しておく
+      try {
+        const oldNext = sceneImageDiv.querySelector('.scene-text-next');
+        if (oldNext) oldNext.remove();
+        sceneImageDiv.classList.remove('clickable');
+        sceneImageDiv.onclick = null;
+      } catch (e) {}
 
       // 表示は敵名のみ（中央）
       // 画像中央に敵名を表示 (上で取得した `sceneImageDiv` を利用)
@@ -706,7 +1001,7 @@
         battleDisplay = document.createElement('div');
         battleDisplay.className = 'battle-display';
         battleDisplay.style.minHeight = '48px';
-        battleDisplay.style.marginBottom = '8px';
+        battleDisplay.style.marginBottom = '1px';
         textOverlay.appendChild(battleDisplay);
       }
 
@@ -718,15 +1013,65 @@
         log.id = 'battle-log';
         textOverlay.appendChild(log);
       }
-      appendBattleLog('戦闘開始！敵が現れた：' + battleState.enemy.name);
+      // DOMが安定するまで少し遅延してログ出力開始（先頭ログの表示漏れ対策）
+      setTimeout(() => appendBattleLog('戦闘開始！敵が現れた：' + battleState.enemy.name), 80);
       battleState.turn = 'player';
       updateBattleUI();
     }
 
     function appendBattleLog(msg) {
-      const log = document.getElementById('battle-log');
-      const battleDisplay = document.querySelector('.battle-display');
+      const textOverlay = document.getElementById('scene-text-overlay');
+      const log = document.getElementById('battle-log') || (textOverlay && textOverlay.querySelector('.battle-log'));
+      const battleDisplay = (textOverlay && textOverlay.querySelector('.battle-display')) || document.querySelector('.battle-display');
       if (!log && !battleDisplay) return;
+      // メッセージキューを用意
+      if (!battleState) {
+        console.warn('[appendBattleLog] called but no battleState; ignoring:', msg);
+        return;
+      }
+      if (!Array.isArray(battleState._queue)) battleState._queue = [];
+      battleState._queue.push(msg);
+      // 非同期で1つずつ処理する
+      if (battleState._processing) return;
+      battleState._processing = true;
+      const processNext = () => {
+        // guard: battleState may have been cleared while async callbacks were pending
+        if (!battleState) {
+          // nothing to do
+          return;
+        }
+        if (!battleState._queue || battleState._queue.length === 0) {
+          battleState._processing = false;
+          return;
+        }
+        const nextMsg = battleState._queue.shift();
+        // flush previous pending into history before typing next (guard if battle ended)
+        if (battleState && battleState._pendingLogs && log) {
+          battleState._pendingLogs.forEach(m => {
+            const d = document.createElement('div'); d.textContent = m;
+            log.appendChild(d);
+          });
+          while (log.children.length > 3) log.removeChild(log.children[0]);
+          log.scrollTop = log.scrollHeight;
+          battleState._pendingLogs = [];
+        }
+        // show in battleDisplay then push to pending
+        typeWriterText(battleDisplay, (''+nextMsg).replace(/[&<>"]/g, function(ch){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[ch] || ch; }), 20, () => {
+          // If battleState no longer exists (battle ended/cleaned up), skip adding pending logs
+          if (!battleState) {
+            // continue processing queue if any (but don't recreate battleState)
+            setTimeout(processNext, 120);
+            return;
+          }
+          if (!battleState._pendingLogs) battleState._pendingLogs = [];
+          battleState._pendingLogs.push(nextMsg);
+          while (battleState._pendingLogs.length > 3) battleState._pendingLogs.shift();
+          // 小さな遅延の後、次を処理
+          setTimeout(processNext, 120);
+        });
+      };
+      processNext();
+      return;
       // エスケープ
       function escapeHtml(str) {
         return (''+str).replace(/[&<>\"]/g, function(ch){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[ch] || ch; });
@@ -742,7 +1087,7 @@
             const d = document.createElement('div'); d.textContent = m;
             log.appendChild(d);
           });
-          while (log.children.length > 2) log.removeChild(log.children[0]);
+          while (log.children.length > 3) log.removeChild(log.children[0]);
           log.scrollTop = log.scrollHeight;
           battleState._pendingLogs = [];
         }
@@ -750,13 +1095,13 @@
         typeWriterText(battleDisplay, escapeHtml(msg), 20, () => {
           battleState._pendingLogs.push(msg);
           // keep pending buffer small
-          while (battleState._pendingLogs.length > 2) battleState._pendingLogs.shift();
+          while (battleState._pendingLogs.length > 3) battleState._pendingLogs.shift();
         });
       } else {
         // battleDisplay がない場合は通常の履歴追加
         const d = document.createElement('div'); d.textContent = msg;
         log.appendChild(d);
-        while (log.children.length > 2) log.removeChild(log.children[0]);
+        while (log.children.length > 3) log.removeChild(log.children[0]);
         log.scrollTop = log.scrollHeight;
       }
     }
@@ -781,8 +1126,20 @@
       if (enemyFill) enemyFill.style.width = Math.max(0,Math.round((battleState.enemy.hp/battleState.enemy.maxHp)*100)) + '%';
       if (protFill) protFill.style.width = Math.max(0,Math.round((battleState.protagonist.hp/battleState.protagonist.maxHp)*100)) + '%';
       if (compFill) compFill.style.width = Math.max(0,Math.round((battleState.companion.hp/battleState.companion.maxHp)*100)) + '%';
-      // disable actions if not player's turn
-      textOverlay.querySelectorAll('.battle-action-btn').forEach(b => b.disabled = (battleState.turn !== 'player'));
+      // disable actions if not player's turn (actions panel is attached to scene-image)
+      const sceneImageDiv = document.getElementById('scene-image');
+      if (sceneImageDiv) {
+        sceneImageDiv.querySelectorAll('.battle-action-btn').forEach(b => b.disabled = (battleState.turn !== 'player'));
+        // disable item button if heal limit reached
+        try {
+          const itemBtn = sceneImageDiv.querySelector('.battle-action-btn:nth-child(4)');
+          if (itemBtn) {
+            const limit = (battleState && battleState.healLimit) || 3;
+            const used = (battleState && battleState.healsUsed) || 0;
+            itemBtn.disabled = itemBtn.disabled || (used >= limit);
+          }
+        } catch (e) {}
+      }
     }
 
     function playerAction(action) {
@@ -793,23 +1150,27 @@
           const p = battleState.protagonist;
           const e = battleState.enemy;
           const dmg1 = Math.max(1, p.atk - (e.def || 0));
-          e.hp -= dmg1;
-          appendBattleLog(`${p.name}の攻撃！${e.name}に${dmg1}ダメージ`);
-          if (e.hp <= 0) {
-            appendBattleLog(`${e.name} を倒した！`);
-            endBattle(true);
-            return;
-          }
+            e.hp -= dmg1;
+            console.log('[playerAction] protagonist dealt', dmg1, 'to', e.name, 'new hp=', e.hp);
+            appendBattleLog(`${p.name}の攻撃！${e.name}に${dmg1}ダメージ`);
+            if (e.hp <= 0) {
+              console.log('[playerAction] enemy hp <=0, triggering endBattle(true) for', e.name);
+              appendBattleLog(`${e.name} を倒した！`);
+              endBattle(true);
+              return;
+            }
           // 相棒攻撃
           const c = battleState.companion;
           const dmg2 = Math.max(1, c.atk - (e.def || 0));
-          e.hp -= dmg2;
-          appendBattleLog(`${c.name}の追撃！${e.name}に${dmg2}ダメージ`);
-          if (e.hp <= 0) {
-            appendBattleLog(`${e.name} を倒した！`);
-            endBattle(true);
-            return;
-          }
+            e.hp -= dmg2;
+            console.log('[playerAction] companion dealt', dmg2, 'to', e.name, 'new hp=', e.hp);
+            appendBattleLog(`${c.name}の追撃！${e.name}に${dmg2}ダメージ`);
+            if (e.hp <= 0) {
+              console.log('[playerAction] enemy hp <=0 after companion, triggering endBattle(true) for', e.name);
+              appendBattleLog(`${e.name} を倒した！`);
+              endBattle(true);
+              return;
+            }
           break;
         }
         case 'defend': {
@@ -829,10 +1190,17 @@
           break;
         }
         case 'item': {
-          // 簡易: 回復ポーションを1つ消費（実装は暫定）
+          // 回復はバトルごとに回数制限（体験版ルール）
+          if (!battleState) break;
+          if (!('healsUsed' in battleState)) battleState.healsUsed = 0;
           const heal = 20;
-          battleState.player.hp = Math.min(battleState.player.maxHp, battleState.player.hp + heal);
-          appendBattleLog(`${battleState.player.name}はポーションを使った。HPが${heal}回復`);
+          if ((battleState.healsUsed || 0) >= (battleState.healLimit || 3)) {
+            appendBattleLog('もう回復アイテムは使えない！');
+          } else {
+            battleState.healsUsed = (battleState.healsUsed || 0) + 1;
+            battleState.player.hp = Math.min(battleState.player.maxHp, battleState.player.hp + heal);
+            appendBattleLog(`${battleState.player.name}はポーションを使った。HPが${heal}回復 (${battleState.healsUsed}/${battleState.healLimit})`);
+          }
           break;
         }
       }
@@ -869,46 +1237,221 @@
     }
 
     function endBattle(playerWon) {
-      // remove UI elements we added
-      const overlay = document.querySelector('.battle-overlay');
-      if (overlay) overlay.remove();
+      console.log('[endBattle] called, playerWon=', playerWon);
+      // 戦闘終了時は勝敗演出を行ってから通常のクリーンナップを行う
       const sceneImageDiv = document.getElementById('scene-image');
-      if (sceneImageDiv) {
-        const panel = sceneImageDiv.querySelector('.battle-actions-panel');
-        if (panel) panel.remove();
-        const center = sceneImageDiv.querySelector('.battle-center-name');
-        if (center) center.remove();
-      }
       const textOverlay = document.getElementById('scene-text-overlay');
-      if (textOverlay) {
-        textOverlay.innerHTML = '';
-        textOverlay.style.pointerEvents = 'none';
-      }
-      if (playerWon) {
-        appendLog('戦闘に勝利した！');
-        // 敵を倒した場合、ストーリーのscene4へ遷移（例）
-        showScene('scene4');
-      } else {
-        appendLog('あなたは敗北した…ゲームオーバー処理へ');
-        // 敗北時は簡易的にリロードやタイトルへ戻すなど
-        alert('ゲームオーバー');
-        window.location.reload();
-      }
-      // restore player's hp to gameState (簡易)
-      gameState.hp = Math.max(0, battleState.protagonist.hp);
-      // flush any pending battle messages into the battle-log before clearing state
-      if (battleState && battleState._pendingLogs && battleState._pendingLogs.length > 0) {
-        const log = document.getElementById('battle-log');
-        if (log) {
-          battleState._pendingLogs.forEach(m => {
-            const d = document.createElement('div'); d.textContent = m;
-            log.appendChild(d);
-          });
-          while (log.children.length > 2) log.removeChild(log.children[0]);
-          log.scrollTop = log.scrollHeight;
+      // 戦闘中のアクションパネルやボタンが残っていると違和感があるため、即座に削除/無効化する
+      try {
+        const panel = sceneImageDiv && sceneImageDiv.querySelector && sceneImageDiv.querySelector('.battle-actions-panel');
+        if (panel) {
+          // すぐに非表示にしてイベントを無効化
+          panel.querySelectorAll('button').forEach(b => { try { b.disabled = true; } catch(e){} });
+          panel.style.display = 'none';
+        }
+      } catch (e) { console.warn('endBattle: could not hide actions panel', e); }
+      // 結果表示要素を作成
+      const result = document.createElement('div');
+      result.className = 'battle-result';
+      result.textContent = playerWon ? '勝利！' : '敗北…';
+      if (sceneImageDiv) {
+        sceneImageDiv.appendChild(result);
+        // 強制的に高い z-index を設定して見えない問題を回避
+        try { result.style.zIndex = '99999'; } catch(e){}
+        // 即時にインラインで表示を確保（CSSの競合で見えない場合に備える）
+        try {
+          result.style.display = 'block';
+          result.style.opacity = '1';
+          result.style.pointerEvents = 'auto';
+          result.style.transform = 'translate(-50%, -50%) scale(1)';
+        } catch(e) {}
+        // アニメーション開始トリガー（併用）
+        setTimeout(() => { result.classList.add('show'); }, 20);
+        console.log('[endBattle] appended result element, inDOM=', document.contains(result), 'parent=', sceneImageDiv ? sceneImageDiv.className : null);
+        // 勝利時は報酬を表示・付与
+        if (playerWon) {
+          try { awardRewards(battleState.enemy, result); } catch (e) { console.error('awardRewards error', e); }
+          // 戦闘用ログをクリアして、相棒の一言演出を表示
+          try {
+            const battleLogEl = document.getElementById('battle-log');
+            if (battleLogEl) battleLogEl.innerHTML = '';
+            if (textOverlay) {
+              textOverlay.innerHTML = '';
+              const companionName = (battleState && battleState.companion && battleState.companion.name) ? battleState.companion.name : (localStorage.getItem('selected_companion') ? JSON.parse(localStorage.getItem('selected_companion')).name : '相棒');
+              const protagonistName = (battleState && battleState.protagonist && battleState.protagonist.name) ? battleState.protagonist.name : '主人公';
+              const cheer = document.createElement('div');
+              cheer.className = 'victory-cheer';
+              cheer.style.fontSize = '32px';
+              cheer.style.fontWeight = '800';
+              cheer.style.textAlign = 'center';
+              cheer.style.padding = '8px 16px';
+              cheer.style.color = '#fff';
+              cheer.style.textShadow = '0 4px 12px rgba(0,0,0,0.8)';
+              cheer.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
+              cheer.textContent = `${companionName}「やったね！${protagonistName}！」`;
+              textOverlay.appendChild(cheer);
+            }
+          } catch (e) { console.error('勝利演出エラー', e); }
+        }
+        // 敗北時はすぐに専用のオーバーレイを表示してクリック待ちにする
+        if (!playerWon) {
+          try {
+            // 既にオーバーレイがある場合は作らない
+            if (sceneImageDiv && !sceneImageDiv.querySelector('.defeat-overlay')) {
+              let companionName = '相棒';
+              const sel = localStorage.getItem('selected_companion');
+              if (sel) {
+                try { const obj = JSON.parse(sel); if (obj && obj.name) companionName = obj.name; } catch(e){}
+              }
+              const protagonistName = (battleState && battleState.protagonist && battleState.protagonist.name) ? battleState.protagonist.name : '主人公';
+              const defeatOverlay = document.createElement('div');
+              defeatOverlay.className = 'defeat-overlay';
+              defeatOverlay.style.position = 'absolute';
+              defeatOverlay.style.left = '0';
+              defeatOverlay.style.top = '0';
+              defeatOverlay.style.width = '100%';
+              defeatOverlay.style.height = '100%';
+              defeatOverlay.style.display = 'flex';
+              defeatOverlay.style.alignItems = 'center';
+              defeatOverlay.style.justifyContent = 'center';
+              defeatOverlay.style.flexDirection = 'column';
+              defeatOverlay.style.background = 'rgba(0,0,0,0)';
+              defeatOverlay.style.color = '#fff';
+              defeatOverlay.style.zIndex = '99998';
+              defeatOverlay.style.cursor = 'pointer';
+              defeatOverlay.style.transition = 'background 700ms ease';
+              const speech = document.createElement('div');
+              speech.className = 'defeat-speech';
+              speech.style.fontSize = '20px';
+              speech.style.padding = '20px';
+              speech.style.textAlign = 'center';
+              speech.style.maxWidth = '80%';
+              speech.style.lineHeight = '1.6';
+              speech.style.textShadow = '0 2px 6px rgba(0,0,0,0.8)';
+              speech.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
+              speech.innerHTML = `${companionName}「${protagonistName}！${protagonistName}...目を覚まして、お願い...」`;
+              defeatOverlay.appendChild(speech);
+              sceneImageDiv.style.position = 'relative';
+              sceneImageDiv.appendChild(defeatOverlay);
+              setTimeout(() => { defeatOverlay.style.background = 'rgba(0,0,0,0.86)'; }, 30);
+              // attach click for flow to narration+choices
+              defeatOverlay.addEventListener('click', function onDefClick(e){
+                try { e.stopPropagation(); } catch(ex){}
+                // remove overlay
+                if (defeatOverlay && defeatOverlay.parentNode) defeatOverlay.parentNode.removeChild(defeatOverlay);
+                // minimal cleanup
+                try { const panel = sceneImageDiv.querySelector('.battle-actions-panel'); if (panel) panel.remove(); } catch(e){}
+                if (textOverlay) { textOverlay.innerHTML = ''; textOverlay.classList.remove('in-battle'); textOverlay.style.pointerEvents = 'auto'; }
+                // clear battle state
+                battleState = null;
+                // show scene1 then narration and choices
+                showScene('scene1');
+                setTimeout(() => {
+                  const narr = `どうやら、${protagonistName}はダンジョンの入り口に飛ばされてしまったようだ。`;
+                  currentTextBlocks = [narr.replace(/\n/g,'<br>')];
+                  currentTextIndex = 0;
+                  textOverlayEl = document.getElementById('scene-text-overlay');
+                  if (textOverlayEl) textOverlayEl.style.fontFamily = "'Noto Serif JP', '游明朝', 'Yu Mincho', 'MS Mincho', serif";
+                  showNextTextBlock(() => {
+                    showChoicesOverlay([
+                      { text: 'もう一度入る', next: 'RETRY' },
+                      { text: 'ゲームをやめる', next: 'QUIT' }
+                    ], (choice) => {
+                      if (choice.next === 'RETRY') {
+                        gameState.hp = gameState.maxHp || 100;
+                        saveGame(gameState);
+                        showScene('scene1');
+                      } else {
+                        window.location.href = 'index.html';
+                      }
+                    });
+                  });
+                }, 180);
+              }, { once: true });
+            }
+          } catch (e) { console.error('敗北オーバーレイ作成エラー', e); }
         }
       }
-      battleState = null;
+      // 戦闘終了演出は時間経過では消さず、クリックでのみ終了させる
+      let _cleanupCalled = false;
+      const doCleanup = () => {
+        if (_cleanupCalled) return; _cleanupCalled = true;
+        // remove UI elements we added
+        const overlay = document.querySelector('.battle-overlay');
+        if (overlay) overlay.remove();
+        if (sceneImageDiv) {
+          const panel = sceneImageDiv.querySelector('.battle-actions-panel');
+          if (panel) panel.remove();
+          const center = sceneImageDiv.querySelector('.battle-center-name');
+          if (center) center.remove();
+          // remove result element if still present
+          const r = sceneImageDiv.querySelector('.battle-result');
+          if (r) r.remove();
+          // remove any leftover next arrow
+          const oldNext = sceneImageDiv.querySelector('.scene-text-next'); if (oldNext) oldNext.remove();
+        }
+        if (textOverlay) {
+          textOverlay.innerHTML = '';
+          textOverlay.style.pointerEvents = 'none';
+          textOverlay.classList.remove('in-battle');
+        }
+        if (playerWon) {
+          appendLog('戦闘に勝利した！');
+          // 敵を倒した場合、ストーリーのscene4へ遷移（例）
+          showScene('scene4');
+        } else {
+          appendLog('あなたは敗北した…');
+          // 敗北時はここでは演出の制御をしない（既に即時敗北オーバーレイを表示している）
+        }
+        // restore player's hp to gameState (guarded)
+        try {
+          gameState.hp = Math.max(0, (battleState && battleState.protagonist && typeof battleState.protagonist.hp === 'number') ? battleState.protagonist.hp : (gameState.hp || 0));
+        } catch (e) {
+          // ignore
+        }
+        // flush any pending battle messages into the battle-log before clearing state
+        if (battleState && battleState._pendingLogs && battleState._pendingLogs.length > 0) {
+          const log = document.getElementById('battle-log');
+          if (log) {
+            battleState._pendingLogs.forEach(m => {
+              const d = document.createElement('div'); d.textContent = m;
+              log.appendChild(d);
+            });
+            while (log.children.length > 3) log.removeChild(log.children[0]);
+            log.scrollTop = log.scrollHeight;
+          }
+        }
+        battleState = null;
+      };
+      const _clickHandler = (e) => {
+        try {
+          // もしクリックが戦闘アクション内で発生したものなら無視（攻撃ボタン等）
+          const panel = sceneImageDiv && sceneImageDiv.querySelector && sceneImageDiv.querySelector('.battle-actions-panel');
+          if (panel && panel.contains(e.target)) return;
+        } catch (ee) {}
+        // 任意のクリックで演出をスキップ
+        doCleanup();
+      };
+      // 勝利時は右下に▼を表示して、プレイヤーがクリックしたら演出を終了する
+      setTimeout(() => {
+        try {
+          if (playerWon && sceneImageDiv) {
+            // remove any existing next arrow first
+            const oldNext = sceneImageDiv.querySelector('.scene-text-next'); if (oldNext) oldNext.remove();
+            const endBtn = document.createElement('div');
+            endBtn.className = 'scene-text-next battle-result-next';
+            endBtn.textContent = '▼';
+            // ensure visible
+            endBtn.style.display = 'block';
+            // append and handle click once
+            sceneImageDiv.appendChild(endBtn);
+            endBtn.addEventListener('click', (ev) => {
+              try { ev.stopPropagation(); } catch(e){}
+              _clickHandler(ev);
+            }, { once: true });
+          }
+        } catch (e) { console.error('endBattle: could not add end button', e); }
+      }, 50);
     }
   </script>
 </body>
