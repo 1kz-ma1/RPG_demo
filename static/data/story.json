@@ -169,11 +169,11 @@
 
     {
     "id":"rose",
-    "text": "どうやら、${playerName}はダンジョンの入り口に飛ばされてしまったようだ。\n\n${companion_name}「やっと目覚ましたよー...大丈夫？ これからどうする...？」」",
+    "text": "どうやら、ダンジョンの入り口に飛ばされてしまったようだ。\n\n${companion_name}「やっと目覚ましたよー...大丈夫？ これからどうする...？」」",
     "image": "pregenerated/rose.jpg",
     "choices": [
-        {"text": "もう一度入る", "next": "RETRY"},
-        {"text": "ゲームをやめる", "next": "QUIT"}
+        {"text": "もう一度入る", "next": "scene1"},
+        {"text": "ゲームをやめる", "next": "保留なう"}
     ]
     }
 ]
